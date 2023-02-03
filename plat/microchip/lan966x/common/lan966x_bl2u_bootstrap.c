@@ -31,6 +31,11 @@ static const uintptr_t fip_base_addr = DDR_BASE_ADDR;
 static const uintptr_t fip_max_size = DDR_MEM_SIZE;
 static uint32_t data_rcv_length;
 
+static void handle_helloworld(bootstrap_req_t *req)
+{
+	bootstrap_TxAckData("Hello World!", 12);
+}
+
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
 {
 	uint8_t data[256];
@@ -433,6 +438,8 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
+		else if(is_cmd(&req, BOOTSTRAP_HELLOWORLD))
+			handle_helloworld(&req);
 		else
 			bootstrap_TxNack("Unknown command");
 	}

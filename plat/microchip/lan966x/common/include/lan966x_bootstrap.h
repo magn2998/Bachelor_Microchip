@@ -51,6 +51,8 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
+// Hello World
+#define BOOTSTRAP_HELLOWORLD   'X'
 
 #define BSTRAP_HEXFLD_LEN	8
 

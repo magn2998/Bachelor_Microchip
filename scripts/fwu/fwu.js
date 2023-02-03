@@ -23,6 +23,7 @@ const CMD_BL2U_BIND ='B';
 const CMD_BL2U_OTP_READ_RAW ='l';
 const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
+const CMD_HELLOWORLD = 'X';
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -651,6 +652,20 @@ function startSerial()
 	} finally {
 	    restoreButtons(s);
 	}
+    });
+
+    document.getElementById('bl2u_helloworld').addEventListener('click', async() => {
+      let s = disableButtons("bl2u", true);
+      try {
+        setStatus("Executing Hello World Function!");
+        let cont = await completeRequest(port, fmtReq(CMD_HELLOWORLD, 0));
+        console.log(cont);
+        setStatus("Completed Hello World Function! Got: " + cont.data);
+      } catch(e) {
+        setStatus("Failed to run Hello World. Error: " + e);
+      } finally {
+        restoreButtons(s);
+      }
     });
 
     document.getElementById('bl1_download').addEventListener('click', async () => {
