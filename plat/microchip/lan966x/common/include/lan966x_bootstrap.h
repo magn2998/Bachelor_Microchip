@@ -51,8 +51,15 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
-// Hello World
-#define BOOTSTRAP_HELLOWORLD   'X'
+// Memory Chip Test: Random Pattern
+#define BOOTSTRAP_MEMORYTEST_RND   'x'
+// Memory Chip Test: Random Pattern + Reversed
+#define BOOTSTRAP_MEMORYTEST_RND_REV   'X'
+// Memory Chip Test: Walking Ones Pattern (000000001 -> 00000010 -> ...)
+#define BOOTSTRAP_MEMORYTEST_ONES   'y'
+// Memory Chip Test: Walking Ones Pattern + Reversed (Walking zeros)
+#define BOOTSTRAP_MEMORYTEST_ONES_REV   'Y'
+
 
 #define BSTRAP_HEXFLD_LEN	8
 

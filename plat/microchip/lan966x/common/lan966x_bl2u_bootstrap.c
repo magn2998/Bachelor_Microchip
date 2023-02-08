@@ -32,59 +32,100 @@ static const uintptr_t fip_base_addr = DDR_BASE_ADDR;
 static const uintptr_t fip_max_size = DDR_MEM_SIZE;
 static uint32_t data_rcv_length;
 
-static void handle_helloworld(bootstrap_req_t *req)
+static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
+	if(reversed) {
+		// bootstrap_TxAckData("Executing Random Pattern Reversed", 34);
+		// return;
+	}
+
+	// Numbers to generate seemingly random pattern
 	uint8_t modulo = 251;
 	uint8_t factor = 13;
 	uint8_t start = 3;
 	uint8_t cntr = 0;
-	char msg[32];
+	uint8_t failed = 0;
+	
+	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
+	uint64_t nextProgressUpdate = progressStep;
+
 	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	uint32_t memorySize = LAN966X_DDR_SIZE;
+	uint64_t memorySize = LAN966X_DDR_SIZE;
 
 	// Populate Memory with data
 	cntr = start;
-	for(uint32_t i = 0; i < memorySize; i++) {
+	for(uint64_t i = 0; i < memorySize; i++) {
 		*memoryBase = cntr;
-		// if(i == 134) {
-		// 	*memoryBase = 'k';
-		// }
 		cntr = cntr * factor % modulo;
 		memoryBase++;
+
+		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+			bootstrap_TxAck(); 
+			nextProgressUpdate = progressStep;
+		}
 	}
+
 
 	// Check memory is identical
 	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	nextProgressUpdate = progressStep;
 	cntr = start;
-	uint8_t failed = 0;
-	for(uint32_t i = 0; i < memorySize; i++) {
+	for(uint64_t i = 0; i < memorySize; i++) {
 		if(*memoryBase != cntr) {
 			failed = 1;
 			break;
 		}
+		if(reversed) { // If it runs reversed, store the revered value
+			(*memoryBase) = (~cntr);
+		}
+
 		cntr = cntr * factor % modulo;
 		memoryBase++;
+
+		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+			bootstrap_TxAck();
+			nextProgressUpdate = progressStep;
+		}
 	}
 
-	if(failed) {
-		strlcpy(msg, "Test Failed", 12);
-	} else {
-		strlcpy(msg, "Test Success", 13);
+	// Check memory is identical to reverse, in case the reverse is checked
+	if((reversed == 1) && (failed == 0)) {
+		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+		nextProgressUpdate = progressStep;
+		cntr = start;
+		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
+			if((uint8_t)(*memoryBase ^ ~cntr) > 0) {
+				failed = 1;
+				break;
+			}
+
+			cntr = cntr * factor % modulo;
+			memoryBase++;
+
+			if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+				bootstrap_TxAck();
+				nextProgressUpdate = progressStep;
+			}
+		}
 	}
-	
-	// strlcat(msg, "Banana:", 32);  
-	// strlcat(msg, (char*)LAN966X_DDR_BASE, 32);
-	// memoryBase--;
-	// strlcat(msg, (char*)memoryBase, 32);
-	// memoryBase--;
-	// strlcat(msg, (char*)memoryBase, 32);
-	// memoryBase++;
-	// strlcat(msg, (char*)memoryBase, 32);
-	bootstrap_TxAckData(msg, strnlen(msg, 32));
+
+
+	// Create Response Message
+	if(failed) {
+		bootstrap_TxAckData("Test Failed", 12);
+	} else {
+		bootstrap_TxAckData("Test Success", 13);
+	}
 }
 
-static void test_1(){
-	return test_1();
+
+static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
+{
+	if(reversed) {
+		bootstrap_TxAckData("Executing Walking Ones Reversed", 32);
+	} else {
+		bootstrap_TxAckData("Executing Walking Ones", 23);
+	}
 }
 
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
@@ -489,8 +530,14 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
-		else if(is_cmd(&req, BOOTSTRAP_HELLOWORLD))
-			handle_helloworld(&req);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND))
+			handle_memoryTest_rnd(&req, 0);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV))
+			handle_memoryTest_rnd(&req, 1);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES))
+			handle_memoryTest_ones(&req, 0);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV))
+			handle_memoryTest_ones(&req, 1);
 		else
 			bootstrap_TxNack("Unknown command");
 	}

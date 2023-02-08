@@ -23,7 +23,11 @@ const CMD_BL2U_BIND ='B';
 const CMD_BL2U_OTP_READ_RAW ='l';
 const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
-const CMD_HELLOWORLD = 'X';
+const CMD_MEMORYTEST_RND = 'x';
+const CMD_MEMORYTEST_RND_REV = 'X';
+const CMD_MEMORYTEST_ONES = 'y';
+const CMD_MEMORYTEST_ONES_REV = 'Y';
+
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -285,10 +289,18 @@ async function completeRequest(port, req_str)
     // Send request
     await sendRequest(port, req_str);
     // Get response from port_reader stream
-    var response = await port_reader.read();
+    let res = await readRequest();
+    // Signal un-busy
+    document.getElementById("active").style.display = 'none';
+    // Return result
+    return res;
+}
+
+async function readRequest() {
+	var response = await port_reader.read();
     //console.log("Response: %o", response);
     // Signal received req
-    document.getElementById("active").style.display = 'none';
+    
     try {
 	var rspStruct = parseResponse(response.value);
 	//console.log("Response: %o", rspStruct);
@@ -303,8 +315,8 @@ async function completeRequest(port, req_str)
 	    throw "Request failed to ack";
 	}
     } catch(e) {
-	console.log("completeRequest: " + e);
-	throw e;
+		console.log("completeRequest: " + e);
+		throw e;
     }
     return null;
 }
@@ -642,31 +654,54 @@ function startSerial()
     });
 
     document.getElementById('bl2u_reset').addEventListener('click', async () => {
-	let s = disableButtons("bl2u", true);
-	try {
-	    setStatus("Rebooting from BL2U back to BL1");
-	    let cont = await completeRequest(port, fmtReq(CMD_BL2U_RESET, 0));
-	    setStatus("Booting into BL1");
-	    await delaySkipInput(port, 2000);
-	    setStage("bl1");
-	} finally {
-	    restoreButtons(s);
-	}
+		let s = disableButtons("bl2u", true);
+		try {
+		    setStatus("Rebooting from BL2U back to BL1");
+		    let cont = await completeRequest(port, fmtReq(CMD_BL2U_RESET, 0));
+		    setStatus("Booting into BL1");
+		    await delaySkipInput(port, 2000);
+		    setStage("bl1");
+		} finally {
+		    restoreButtons(s);
+		}
     });
 
-    document.getElementById('bl2u_helloworld').addEventListener('click', async() => {
-      let s = disableButtons("bl2u", true);
-      try {
-        setStatus("Executing Hello World Function!");
-        let cont = await completeRequest(port, fmtReq(CMD_HELLOWORLD, 0));
-        console.log(cont);
-        setStatus("Completed Hello World Function! Got: " + cont.data);
-      } catch(e) {
-        setStatus("Failed to run Hello World. Error: " + e);
-      } finally {
-        restoreButtons(s);
-      }
+    document.getElementById('memorytest_chip_rnd').addEventListener('click', async() => {
+  		if(document.getElementById("memorytest_chip_rnd_reversed").checked) {
+  			await execute_memoryTest(CMD_MEMORYTEST_RND_REV);
+  		} else {
+  			await execute_memoryTest(CMD_MEMORYTEST_RND);
+  		}
     });
+
+    document.getElementById('memorytest_chip_walkingOnes').addEventListener('click', async() => {
+  		if(document.getElementById("memorytest_chip_walkingOnes_reversed").checked) {
+  			await execute_memoryTest(CMD_MEMORYTEST_ONES_REV);
+  		} else {
+  			await execute_memoryTest(CMD_MEMORYTEST_ONES);
+  		}
+    });
+
+    async function execute_memoryTest(TESTID) {
+		let s = disableButtons("bl2u", true);
+		let counter = 1;
+		try {
+			setStatus("Executing Memory Test - 0% done");
+			let cont = await completeRequest(port, fmtReq(TESTID, 0));
+
+			while(cont.length == 0) {
+				// Get response from port_reader stream
+				cont = await readRequest();
+			    setStatus("Executing Memory Test - "+(counter++)+"% done", true);
+			}
+
+			setStatus("Memory test done - Result: " + cont.data);
+		} catch(e) {
+			setStatus("Memory test encountered an error: " + e);
+		} finally {
+			restoreButtons(s);
+		}
+    }
 
     document.getElementById('bl1_download').addEventListener('click', async () => {
 	let s = disableButtons("bl1", true);

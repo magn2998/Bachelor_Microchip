@@ -27,7 +27,7 @@
 	    width: 100%;
 	}
 	table {
-	    width: 100%;
+	    
 	    table-layout: fixed;
 	}
 	table.settings td {
@@ -226,20 +226,46 @@
 	<td id="bl2u_otp_set_data_feedback" class="feedback"></td>
       </tr>
       <tr>
-	<td>
-	  <button type="button" id="bl2u_reset">Reset to BL1</button>
-	</td>
-  <tr>
-    <td>
-      <button type="button" id="bl2u_helloworld">Hello World!</button>
-    </td>
-    <td>
-      <p id="helloworld_feedback"></p>
-    </td>
-  </tr>
-  
+				<td>
+				  <button type="button" id="bl2u_reset">Reset to BL1</button>
+				</td>
       </tr>
     </table>
+
+    <div>
+    	<h2>Memory Test Section</h2>
+    	<p>Use the buttons below to test the memory of the board</p>
+    	
+
+
+    	<table>
+			  <tr>
+			    <td><button style="width:100%" type="button" id="memorytest_dataBus">Check Data Bus</button></td>
+			    <td></td>
+			  </tr>
+			  <tr>
+			    <td><button style="width:100%" type="button" id="memorytest_addressBus">Check Address Bus</button></td>
+			    <td></td>
+			  </tr>
+			  <tr>
+			    <td><button style="width:100%" type="button" id="memorytest_chip_rnd">Random Pattern</button></td>
+			    <td>
+			      <input type="checkbox" id="memorytest_chip_rnd_reversed" name="rnd_reversed">
+			      <label for="rnd_reversed">Reversed</label>
+			    </td>
+			  </tr>
+			  <tr>
+			    <td><button style="width:100%" type="button" id="memorytest_chip_walkingOnes">Walking Ones</button></td>
+			    <td>
+			      <input type="checkbox" id="memorytest_chip_walkingOnes_reversed" name="walkingOnes_reversed">
+			      <label for="walkingOnes_reversed">Reversed</label>
+			    </td>
+			  </tr>
+			</table>
+
+
+    </div>
+
   </div>
   <div id="booting" style="display:none">
     <h2>Booting</h2>
