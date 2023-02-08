@@ -23,6 +23,7 @@
 #include "ddr.h"
 #include "otp.h"
 
+
 #define MAX_OTP_DATA	1024
 
 #define PAGE_ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
@@ -33,7 +34,57 @@ static uint32_t data_rcv_length;
 
 static void handle_helloworld(bootstrap_req_t *req)
 {
-	bootstrap_TxAckData("Hello World!", 12);
+	uint8_t modulo = 251;
+	uint8_t factor = 13;
+	uint8_t start = 3;
+	uint8_t cntr = 0;
+	char msg[32];
+	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	uint32_t memorySize = LAN966X_DDR_SIZE;
+
+	// Populate Memory with data
+	cntr = start;
+	for(uint32_t i = 0; i < memorySize; i++) {
+		*memoryBase = cntr;
+		// if(i == 134) {
+		// 	*memoryBase = 'k';
+		// }
+		cntr = cntr * factor % modulo;
+		memoryBase++;
+	}
+
+	// Check memory is identical
+	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	cntr = start;
+	uint8_t failed = 0;
+	for(uint32_t i = 0; i < memorySize; i++) {
+		if(*memoryBase != cntr) {
+			failed = 1;
+			break;
+		}
+		cntr = cntr * factor % modulo;
+		memoryBase++;
+	}
+
+	if(failed) {
+		strlcpy(msg, "Test Failed", 12);
+	} else {
+		strlcpy(msg, "Test Success", 13);
+	}
+	
+	// strlcat(msg, "Banana:", 32);  
+	// strlcat(msg, (char*)LAN966X_DDR_BASE, 32);
+	// memoryBase--;
+	// strlcat(msg, (char*)memoryBase, 32);
+	// memoryBase--;
+	// strlcat(msg, (char*)memoryBase, 32);
+	// memoryBase++;
+	// strlcat(msg, (char*)memoryBase, 32);
+	bootstrap_TxAckData(msg, strnlen(msg, 32));
+}
+
+static void test_1(){
+	return test_1();
 }
 
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
