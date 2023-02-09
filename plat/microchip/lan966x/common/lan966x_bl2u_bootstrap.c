@@ -34,11 +34,6 @@ static uint32_t data_rcv_length;
 
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
-	if(reversed) {
-		// bootstrap_TxAckData("Executing Random Pattern Reversed", 34);
-		// return;
-	}
-
 	// Numbers to generate seemingly random pattern
 	uint8_t modulo = 251;
 	uint8_t factor = 13;
@@ -121,10 +116,79 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 {
-	if(reversed) {
-		bootstrap_TxAckData("Executing Walking Ones Reversed", 32);
+	// Numbers to generate seemingly random pattern
+	uint8_t val = 1; // 00000001
+	uint8_t failed = 0;
+	
+	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
+	uint64_t nextProgressUpdate = progressStep;
+
+	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	uint64_t memorySize = LAN966X_DDR_SIZE;
+
+	// Populate Memory with data
+	for(uint64_t i = 0; i < memorySize; i++) {
+		*memoryBase = val;
+		memoryBase++;
+
+		val = (val == 0x80 ? 1 : val << 1); // If val = 10000000b (0x80) -> set val = 1 else bitshift value
+
+		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+			bootstrap_TxAck(); 
+			nextProgressUpdate = progressStep;
+		}
+	}
+
+
+	// Check memory is identical
+	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	nextProgressUpdate = progressStep;
+	val = 1;
+	for(uint64_t i = 0; i < memorySize; i++) {
+		if(*memoryBase != val) {
+			failed = 1;
+			break;
+		}
+		if(reversed) { // If it runs reversed, store the revered value
+			(*memoryBase) = (~val);
+		}
+
+		memoryBase++;
+		val = (val == 0x80 ? 1 : val << 1); 
+
+		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+			bootstrap_TxAck();
+			nextProgressUpdate = progressStep;
+		}
+	}
+
+	// Check memory is identical to reverse, in case the reverse is checked
+	if((reversed == 1) && (failed == 0)) {
+		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+		nextProgressUpdate = progressStep;
+		val = 1;
+		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
+			if((uint8_t)(*memoryBase ^ ~val) > 0) {
+				failed = 1;
+				break;
+			}
+
+			memoryBase++;
+			val = (val == 0x80 ? 1 : val << 1); 
+
+			if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+				bootstrap_TxAck();
+				nextProgressUpdate = progressStep;
+			}
+		}
+	}
+
+
+	// Create Response Message
+	if(failed) {
+		bootstrap_TxAckData("Test Failed", 12);
 	} else {
-		bootstrap_TxAckData("Executing Walking Ones", 23);
+		bootstrap_TxAckData("Test Success", 13);
 	}
 }
 
