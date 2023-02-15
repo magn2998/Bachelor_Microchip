@@ -192,6 +192,46 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 	}
 }
 
+
+static void handle_addrBusTest(bootstrap_req_t *req)
+{
+	uint8_t pattern      = 0xdb;
+	uint32_t addrMask    = 0x1;
+	uint32_t secAddrMask = 0x1;
+	uint8_t* baseAddr    = (uint8_t*)LAN966X_DDR_BASE;
+	uint8_t* addr; // 
+
+	// Write to all addresses
+	for(int i = 0; i < 32; i++) {
+		addr = (uint8_t*)((uint32_t)baseAddr | addrMask);
+		*addr = pattern; // Pattern
+		addrMask = addrMask << 1;
+	}
+	// Check they're all correct
+	for(int i = 0; i < 32; i++) {
+		addr = (uint8_t*)((uint32_t)baseAddr | addrMask);
+		if(*addr != pattern) {
+			bootstrap_TxAckData("Test Failef", 12); // Error
+			return;
+		}
+
+		*addr = ~pattern; // Write Anti-Pattern
+
+		for(int o = 0; o < 32; o++) {
+			addr = (uint8_t*)((uint32_t)baseAddr | secAddrMask); // Use second address Mask to iterate again
+			if((*addr != pattern && i!=o) || (i==o && *addr != ~pattern)) {
+				bootstrap_TxAckData("Test Faileg", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
+				return; 
+			}
+			secAddrMask = secAddrMask << 1;
+		}
+		addrMask = addrMask << 1;
+	}
+
+	bootstrap_TxAckData("Test Success", 13);
+}
+
+
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
 {
 	uint8_t data[256];
@@ -595,7 +635,7 @@ void lan966x_bl2u_bootstrap_monitor(void)
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND))
-			handle_memoryTest_rnd(&req, 0);
+			handle_addrBusTest(&req); //handle_memoryTest_rnd(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV))
 			handle_memoryTest_rnd(&req, 1);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES))
