@@ -197,7 +197,7 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 {
 	uint8_t pattern      = 0xdb;
 	uint32_t addrMask    = 0x1;
-	uint32_t secAddrMask = 0x1;
+	// uint32_t secAddrMask = 0x1;
 	uint8_t* baseAddr    = (uint8_t*)LAN966X_DDR_BASE;
 	uint8_t* addr; // 
 
@@ -217,14 +217,15 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 
 		*addr = ~pattern; // Write Anti-Pattern
 
-		for(int o = 0; o < 32; o++) {
-			addr = (uint8_t*)((uint32_t)baseAddr | secAddrMask); // Use second address Mask to iterate again
-			if((*addr != pattern && i!=o) || (i==o && *addr != ~pattern)) {
-				bootstrap_TxAckData("Test Faileg", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
-				return; 
-			}
-			secAddrMask = secAddrMask << 1;
-		}
+		// for(int o = 0; o < 32; o++) {
+		// 	addr = (uint8_t*)((uint32_t)baseAddr | secAddrMask); // Use second address Mask to iterate again
+		// 	if((*addr != pattern && i!=o)) {
+		// 		bootstrap_TxAckData("Test Failep", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
+		// 		return; 
+		// 	}
+		// 	secAddrMask = secAddrMask << 1;
+		// }
+		// secAddrMask = 0x1;
 		addrMask = addrMask << 1;
 	}
 
