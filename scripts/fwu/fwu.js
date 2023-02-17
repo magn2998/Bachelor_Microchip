@@ -669,57 +669,112 @@ function startSerial()
     });
 
     
-
+	let databusReps = 1;
 	document.getElementById('memorytest_dataBus').addEventListener('click', async() => {
-		await execute_memoryTest(CMD_MEMORYTEST_DATABUS);
+		await execute_memoryTest(CMD_MEMORYTEST_DATABUS, "data bus memory test", databusReps);
 	});
 
+	let addrbusReps = 1;
 	document.getElementById('memorytest_addressBus').addEventListener('click', async() => {
-		await execute_memoryTest(CMD_MEMORYTEST_ADDRBUS);
+		await execute_memoryTest(CMD_MEMORYTEST_ADDRBUS, "address bus memory test", addrbusReps);
 	});
 
+	let chiprndreps = 1;
     document.getElementById('memorytest_chip_rnd').addEventListener('click', async() => {
   		if(document.getElementById("memorytest_chip_rnd_reversed").checked) {
-  			await execute_memoryTest(CMD_MEMORYTEST_RND_REV);
+  			await execute_memoryTest(CMD_MEMORYTEST_RND_REV, "memory chip test w. random & reversed pattern", chiprndreps);
   		} else {
-  			await execute_memoryTest(CMD_MEMORYTEST_RND);
+  			await execute_memoryTest(CMD_MEMORYTEST_RND, "memory chip test w. random pattern", chiprndreps);
   		}
     });
-
+	
+	let chiponesreps = 1;
     document.getElementById('memorytest_chip_walkingOnes').addEventListener('click', async() => {
   		if(document.getElementById("memorytest_chip_walkingOnes_reversed").checked) {
-  			await execute_memoryTest(CMD_MEMORYTEST_ONES_REV);
+  			await execute_memoryTest(CMD_MEMORYTEST_ONES_REV, "memory chip test w. walking ones & reversed pattern", chiponesreps);
   		} else {
-  			await execute_memoryTest(CMD_MEMORYTEST_ONES);
+  			await execute_memoryTest(CMD_MEMORYTEST_ONES, "memory chip test w. walking ones pattern", chiponesreps);
   		}
     });
 
-    async function execute_memoryTest(TESTID) {
+    async function execute_memoryTest(TESTID, TESTNAME, REPS) {
 		let s = disableButtons("bl2u", true);
-		let counter = 1;
+		let counter;
+		let repetitionText;
+		
 		try {
-			setStatus("Executing Memory Test - 0% done");
-			let cont = await completeRequest(port, fmtReq(TESTID, 0));
+			setStatus("Executing "+ TESTNAME);
 
-			console.log(cont);
-			while(cont.length == 0 || cont.data.indexOf("debug:") > -1) {
-				// Get response from port_reader stream
-				cont = await readRequest();
-			    setStatus("Executing Memory Test - "+(counter++)+"% done", true);
 
-			    console.log(cont);
-			    if(cont.length > 0 && cont.data.indexOf("debug:") > -1) {
-			    	console.log("debug data: " + cont.data);
-			    }
+			for(let i = 0; i < REPS; i++) {
+				counter = 1;
+				repetitionText = (REPS == 1) ? "" : (" (" + (i+1) + "/" + REPS + ") ");
+
+				let cont = await completeRequest(port, fmtReq(TESTID, 0));
+				console.log(cont);
+				
+				while(cont.length == 0 || cont.data.indexOf("debug:") > -1) {
+					// Get response from port_reader stream
+					cont = await readRequest();
+					console.log(cont);
+
+					
+					if(cont.length > 0 && cont.data.indexOf("debug:") > -1) {
+						console.log("debug data: " + cont.data);
+					} else {
+						setStatus("Executing " + TESTNAME + " - "+(counter++)+"% done."+repetitionText, true);
+					}
+				}
+				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data);
 			}
 
-			setStatus("Memory test done - Result: " + cont.data);
+			
 		} catch(e) {
 			setStatus("Memory test encountered an error: " + e);
 		} finally {
 			restoreButtons(s);
 		}
     }
+
+	document.getElementById("memorytest_dataBus_reps").addEventListener("focusout", (e) => (databusReps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_addrBus_reps").addEventListener("focusout", (e) => (addrbusReps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_rnd_reps").addEventListener("focusout", (e) => (chiprndreps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_ones_reps").addEventListener("focusout", (e) => (chiponesreps = formatRepetitionInputField(e)));
+
+	function formatRepetitionInputField(event) {
+		let parsedValue = parseInt(event.target.value);
+		if(!parsedValue) {
+			event.target.value = 1;
+		} else {
+			if(parsedValue < 0) {
+				event.target.value = 1;
+			} else if(parsedValue > 999) {
+				event.target.value = 999;
+			} else {
+				event.target.value = parsedValue;
+			}
+		}
+		return event.target.value;
+	}
+
+	document.getElementById("memorytest_dataBus_reps").addEventListener("keydown", handleKeypressEventForInput);
+	document.getElementById("memorytest_addrBus_reps").addEventListener("keydown", handleKeypressEventForInput);
+	document.getElementById("memorytest_rnd_reps").addEventListener("keydown", handleKeypressEventForInput);
+	document.getElementById("memorytest_ones_reps").addEventListener("keydown", handleKeypressEventForInput);
+	function handleKeypressEventForInput(event) {
+		let parsedValue = parseInt(event.target.value);
+		if((event.keyCode == 40 || event.keyCode == 38) && !parsedValue) {
+			event.target.value = 1;
+			return event.target.value;
+		}
+
+		if(event.keyCode == 40) { // Key down arrow
+			event.target.value = (parsedValue == 1) ? 1 : (parsedValue-1);
+		} else if(event.keyCode == 38) { // Key up arrow
+			event.target.value = (parsedValue == 999) ? 999 : (parsedValue+1);
+		}
+		return event.target.value;
+	}
 
     document.getElementById('bl1_download').addEventListener('click', async () => {
 	let s = disableButtons("bl1", true);

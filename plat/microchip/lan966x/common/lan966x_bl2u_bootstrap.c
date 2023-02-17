@@ -32,21 +32,21 @@ static const uintptr_t fip_base_addr = DDR_BASE_ADDR;
 static const uintptr_t fip_max_size = DDR_MEM_SIZE;
 static uint32_t data_rcv_length;
 
-static void int_to_string(uint32_t num, char str[]) 
-{
-    uint32_t i = 0, rem, len = 0, n;
-    n = num;
-    while (n != 0) {
-        len++;
-        n /= 10;
-    }
-    for (i = 0; i < len; i++) {
-        rem = num % 10;
-        str[len - (i + 1)] = rem + '0';
-        num = num / 10;
-    }
-    str[len] = '\0';
-}
+// static void int_to_string(uint32_t num, char str[]) 
+// {
+//     uint32_t i = 0, rem, len = 0, n;
+//     n = num;
+//     while (n != 0) {
+//         len++;
+//         n /= 10;
+//     }
+//     for (i = 0; i < len; i++) {
+//         rem = num % 10;
+//         str[len - (i + 1)] = rem + '0';
+//         num = num / 10;
+//     }
+//     str[len] = '\0';
+// }
 
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
@@ -211,9 +211,6 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 
 static void handle_databusTest(bootstrap_req_t *req)
 {
-	// Debug string
-	char strInt[32];
-
 	// Define the size of the data bus in amount of bits
 	uint8_t size = 32; // 16 Bit wise address bus used
 	uint32_t* baseAddr = (uint32_t*)LAN966X_DDR_BASE; // Address to write to
@@ -221,57 +218,68 @@ static void handle_databusTest(bootstrap_req_t *req)
 	for(uint8_t i = 0; i < size; i++) {
 		*baseAddr = val;
 
-		
-		char str[32];
-		strlcpy(str, "debug: ", 8);
-		int_to_string((uint32_t)(*baseAddr), strInt);
-		strlcat(str, strInt, 32);
-		bootstrap_TxAckData(str, 21);
-		// if((*baseAddr) != val) {
-		// 	bootstrap_TxAckData("Data Bus Test Failed", 21);
-		// 	return;
-		// }
-		val = val << 1;
+		if((*baseAddr) != val) {
+			bootstrap_TxAckData("Data Bus Test Failed", 21);
+			return;
+		}
 	}
 	bootstrap_TxAckData("Data Bus Test Success", 22);
-}
+}  
 
 
 static void handle_addrBusTest(bootstrap_req_t *req)
 {
-	uint8_t pattern      = 0xdb;
-	uint32_t addrMask    = 0x1;
-	// uint32_t secAddrMask = 0x1;
-	uint8_t* baseAddr    = (uint8_t*)LAN966X_DDR_BASE;
-	uint8_t* addr; // 
+	// Debug string
+	// char strInt[32];
+
+	uint8_t pattern    = 0xdb;
+	uintptr_t addrMask = 0x1;
+	uintptr_t baseAddr = LAN966X_DDR_BASE;
+	uint8_t* addr; // Actual address to write to
 
 	// Write to all addresses
-	for(int i = 0; i < 32; i++) {
-		addr = (uint8_t*)((uint32_t)baseAddr | addrMask);
-		*addr = pattern; // Pattern
-		addrMask = addrMask << 1;
+	for(int i = 0; i < 31; i++) {
+		addr = (uint8_t*)(baseAddr | addrMask); // Update Address 
+		*addr = pattern; // Write Pattern
+		addrMask = addrMask << 0x1; // Update Mask for next iteration
 	}
+	// addr = (uint8_t*) 0x80000000; // Last Address in Memory
+	// *addr = pattern;
+
+
 	// Check they're all correct
-	for(int i = 0; i < 32; i++) {
-		addr = (uint8_t*)((uint32_t)baseAddr | addrMask);
+	addrMask = 0x1; // Reset Address Mask
+	for(int i = 0; i < 30; i++) {
+		addr = (uint8_t*)(baseAddr | addrMask); // Update Address for next iteration
+		
 		if(*addr != pattern) {
-			bootstrap_TxAckData("Test Failef", 12); // Error
+			bootstrap_TxAckData("Test Failed", 12); // Error
 			return;
 		}
 
 		*addr = ~pattern; // Write Anti-Pattern
 
-		// for(int o = 0; o < 32; o++) {
-		// 	addr = (uint8_t*)((uint32_t)baseAddr | secAddrMask); // Use second address Mask to iterate again
-		// 	if((*addr != pattern && i!=o)) {
-		// 		bootstrap_TxAckData("Test Failep", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
-		// 		return; 
-		// 	}
-		// 	secAddrMask = secAddrMask << 1;
-		// }
-		// secAddrMask = 0x1;
-		addrMask = addrMask << 1;
+		uintptr_t secAddrMask = 0x1;
+		uint8_t* secAddr; // Actual address to write to
+		for(int o = 0; o < 30; o++) {
+			secAddr = (uint8_t*)(baseAddr | secAddrMask); // Use second address Mask to iterate again
+			if((*secAddr != pattern && i!=o)) {
+				bootstrap_TxAckData("Test Failed", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
+				return; 
+			}
+			secAddrMask = secAddrMask << 1;
+		}
+		
+		*addr = pattern; // Write Back original pattern
+
+		addrMask = addrMask << 0x1; // Update Mask for next iteration
 	}
+	// Check last address in memory
+	// addr = (uint8_t*) 0x80000000; // Last Address in Memory
+	// if(*addr != pattern) {
+	// 	bootstrap_TxAckData("Test Failej", 12); // Error
+	// 	return;
+	// }
 
 	bootstrap_TxAckData("Test Success", 13);
 }

@@ -407,6 +407,7 @@ end
 
 # Build FWU
 lsargs << "html"
+do_cmd("base64 build/lan966x_b0/debug/fwu_fip.bin | ruby scripts/b64.rb > scripts/fwu/fwu_app_lan966x_b0.js")
 do_cmd("ruby ./scripts/html_inline.rb ./scripts/fwu/serial.html > #{build}/fwu.html")
 
 # List binaries

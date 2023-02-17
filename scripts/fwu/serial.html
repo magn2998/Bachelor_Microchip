@@ -44,6 +44,11 @@
 	    text-color: white;
 	    background-color: red;
 	}
+	.memory_test_input {
+		width: 25px;
+		text-align: center;
+		font-weight: bold;
+	}
     </style>
 </head>
 <body onload="startSerial()">
@@ -234,21 +239,25 @@
 
     <div>
     	<h2>Memory Test Section</h2>
-    	<p>Use the buttons below to test the memory of the board</p>
+    	<p style="margin:0px;">Use the buttons below to test the memory of the board.</p>
+		<p style="margin:0 0 20px 0;">You can also set amount of repetitions or use reverse patterns too.</p>
     	
 
 
     	<table>
 			  <tr>
 			    <td><button style="width:100%" type="button" id="memorytest_dataBus">Check Data Bus</button></td>
-			    <td></td>
+			    <td><input class="memory_test_input" value="1" id="memorytest_dataBus_reps" placeholder="repititions"/></td>
+				<td></td>
 			  </tr>
 			  <tr>
 			    <td><button style="width:100%" type="button" id="memorytest_addressBus">Check Address Bus</button></td>
-			    <td></td>
+			    <td><input class="memory_test_input" value="1" id="memorytest_addrBus_reps" placeholder="repititions"/></td>
+				<td></td>
 			  </tr>
 			  <tr>
 			    <td><button style="width:100%" type="button" id="memorytest_chip_rnd">Random Pattern</button></td>
+				<td><input class="memory_test_input" value="1" id="memorytest_rnd_reps" placeholder="repititions"/></td>
 			    <td>
 			      <input type="checkbox" id="memorytest_chip_rnd_reversed" name="rnd_reversed">
 			      <label for="rnd_reversed">Reversed</label>
@@ -256,6 +265,7 @@
 			  </tr>
 			  <tr>
 			    <td><button style="width:100%" type="button" id="memorytest_chip_walkingOnes">Walking Ones</button></td>
+				<td><input  class="memory_test_input" value="1" id="memorytest_ones_reps" placeholder="repititions"/></td>
 			    <td>
 			      <input type="checkbox" id="memorytest_chip_walkingOnes_reversed" name="walkingOnes_reversed">
 			      <label for="walkingOnes_reversed">Reversed</label>
