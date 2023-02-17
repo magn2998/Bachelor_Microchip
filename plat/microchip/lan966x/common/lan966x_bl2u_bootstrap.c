@@ -55,10 +55,9 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	uint8_t factor = 13;
 	uint8_t start = 3;
 	uint8_t cntr = 0;
-	uint8_t failed = 0;
 	
 	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
-	uint64_t nextProgressUpdate = progressStep;
+	uint64_t nextProgressUpdate = 0;
 
 	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
 	uint64_t memorySize = LAN966X_DDR_SIZE;
@@ -79,14 +78,13 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 	// Check memory is identical
 	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	nextProgressUpdate = progressStep;
 	cntr = start;
 	for(uint64_t i = 0; i < memorySize; i++) {
 		if(*memoryBase != cntr) {
-			failed = 1;
-			break;
+			bootstrap_TxAckData("Test Failed", 12);
+			return;
 		}
-		if(reversed) { // If it runs reversed, store the revered value
+		if(reversed) { // If it runs reversed, store the reversed value
 			(*memoryBase) = (~cntr);
 		}
 
@@ -100,14 +98,13 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	}
 
 	// Check memory is identical to reverse, in case the reverse is checked
-	if((reversed == 1) && (failed == 0)) {
+	if(reversed == 1) {
 		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-		nextProgressUpdate = progressStep;
 		cntr = start;
 		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
 			if((uint8_t)(*memoryBase ^ ~cntr) > 0) {
-				failed = 1;
-				break;
+				bootstrap_TxAckData("Test Failed", 12);
+				return;
 			}
 
 			cntr = cntr * factor % modulo;
@@ -121,12 +118,8 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	}
 
 
-	// Create Response Message
-	if(failed) {
-		bootstrap_TxAckData("Test Failed", 12);
-	} else {
-		bootstrap_TxAckData("Test Success", 13);
-	}
+	// test is succesfull if it hasn't returned by now
+	bootstrap_TxAckData("Test Success", 13);
 }
 
 
@@ -134,10 +127,9 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 {
 	// Numbers to generate seemingly random pattern
 	uint8_t val = 1; // 00000001
-	uint8_t failed = 0;
 	
 	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
-	uint64_t nextProgressUpdate = progressStep;
+	uint64_t nextProgressUpdate = 0;
 
 	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
 	uint64_t memorySize = LAN966X_DDR_SIZE;
@@ -158,12 +150,11 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 
 	// Check memory is identical
 	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	nextProgressUpdate = progressStep;
 	val = 1;
 	for(uint64_t i = 0; i < memorySize; i++) {
 		if(*memoryBase != val) {
-			failed = 1;
-			break;
+			bootstrap_TxAckData("Test Failed", 12);
+			return;
 		}
 		if(reversed) { // If it runs reversed, store the revered value
 			(*memoryBase) = (~val);
@@ -179,14 +170,13 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 	}
 
 	// Check memory is identical to reverse, in case the reverse is checked
-	if((reversed == 1) && (failed == 0)) {
+	if(reversed == 1) {
 		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-		nextProgressUpdate = progressStep;
 		val = 1;
 		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
 			if((uint8_t)(*memoryBase ^ ~val) > 0) {
-				failed = 1;
-				break;
+				bootstrap_TxAckData("Test Failed", 12);
+				return;
 			}
 
 			memoryBase++;
@@ -199,13 +189,8 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 		}
 	}
 
-
-	// Create Response Message
-	if(failed) {
-		bootstrap_TxAckData("Test Failed", 12);
-	} else {
-		bootstrap_TxAckData("Test Success", 13);
-	}
+	// Test Succesfull if it hasn't returned by now
+	bootstrap_TxAckData("Test Success", 13);
 }
 
 
@@ -214,7 +199,7 @@ static void handle_databusTest(bootstrap_req_t *req)
 	// Define the size of the data bus in amount of bits
 	uint8_t size = 32; // 16 Bit wise address bus used
 	uint32_t* baseAddr = (uint32_t*)LAN966X_DDR_BASE; // Address to write to
-	uint64_t val = 1; // Value to write - Ise uint64 to account for any sized data bus
+	uint64_t val = 0xbc; // Value to write - Ise uint64 to account for any sized data bus
 	for(uint8_t i = 0; i < size; i++) {
 		*baseAddr = val;
 
@@ -229,9 +214,6 @@ static void handle_databusTest(bootstrap_req_t *req)
 
 static void handle_addrBusTest(bootstrap_req_t *req)
 {
-	// Debug string
-	// char strInt[32];
-
 	uint8_t pattern    = 0xdb;
 	uintptr_t addrMask = 0x1;
 	uintptr_t baseAddr = LAN966X_DDR_BASE;
@@ -243,9 +225,6 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 		*addr = pattern; // Write Pattern
 		addrMask = addrMask << 0x1; // Update Mask for next iteration
 	}
-	// addr = (uint8_t*) 0x80000000; // Last Address in Memory
-	// *addr = pattern;
-
 
 	// Check they're all correct
 	addrMask = 0x1; // Reset Address Mask
@@ -259,8 +238,8 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 
 		*addr = ~pattern; // Write Anti-Pattern
 
-		uintptr_t secAddrMask = 0x1;
-		uint8_t* secAddr; // Actual address to write to
+		uintptr_t secAddrMask = 0x1; // Mask for checking other addresses
+		uint8_t* secAddr; // Address for checking 
 		for(int o = 0; o < 30; o++) {
 			secAddr = (uint8_t*)(baseAddr | secAddrMask); // Use second address Mask to iterate again
 			if((*secAddr != pattern && i!=o)) {
@@ -274,12 +253,6 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 
 		addrMask = addrMask << 0x1; // Update Mask for next iteration
 	}
-	// Check last address in memory
-	// addr = (uint8_t*) 0x80000000; // Last Address in Memory
-	// if(*addr != pattern) {
-	// 	bootstrap_TxAckData("Test Failej", 12); // Error
-	// 	return;
-	// }
 
 	bootstrap_TxAckData("Test Success", 13);
 }
