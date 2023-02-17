@@ -51,6 +51,10 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
+// Memory Data Bus Test
+#define BOOTSTRAP_MEMORYTEST_DATABUS  'k'
+// Memory Address Bus Test
+#define BOOTSTRAP_MEMORYTEST_ADDRBUS  'K'
 // Memory Chip Test: Random Pattern
 #define BOOTSTRAP_MEMORYTEST_RND   'x'
 // Memory Chip Test: Random Pattern + Reversed

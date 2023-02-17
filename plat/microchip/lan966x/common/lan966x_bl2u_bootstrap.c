@@ -32,6 +32,22 @@ static const uintptr_t fip_base_addr = DDR_BASE_ADDR;
 static const uintptr_t fip_max_size = DDR_MEM_SIZE;
 static uint32_t data_rcv_length;
 
+static void int_to_string(uint32_t num, char str[]) 
+{
+    uint32_t i = 0, rem, len = 0, n;
+    n = num;
+    while (n != 0) {
+        len++;
+        n /= 10;
+    }
+    for (i = 0; i < len; i++) {
+        rem = num % 10;
+        str[len - (i + 1)] = rem + '0';
+        num = num / 10;
+    }
+    str[len] = '\0';
+}
+
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
 	// Numbers to generate seemingly random pattern
@@ -191,6 +207,39 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 		bootstrap_TxAckData("Test Success", 13);
 	}
 }
+
+static void handle_databusTest(bootstrap_req_t *req)
+{
+	// Debug string
+	char strInt[32];
+
+	// Define the size of the data bus in amount of bits
+	uint8_t size = 32; // 16 Bit wise address bus used
+	uint32_t* baseAddr = (uint32_t*)LAN966X_DDR_BASE; // Address to write to
+	uint64_t val = 1; // Value to write - Ise uint64 to account for any sized data bus
+	for(uint8_t i = 0; i < size; i++) {
+		*baseAddr = val;
+
+		
+		char str[32];
+		strlcpy(str, "debug: ", 8);
+		int_to_string((uint32_t)(*baseAddr), strInt);
+		strlcat(str, strInt, 32);
+		bootstrap_TxAckData(str, 21);
+		// if((*baseAddr) != val) {
+		// 	bootstrap_TxAckData("Data Bus Test Failed", 21);
+		// 	return;
+		// }
+		val = val << 1;
+	}
+	bootstrap_TxAckData("Data Bus Test Success", 22);
+}
+
+static void handle_addressbusTest(bootstrap_req_t *req)
+{
+
+}
+
 
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
 {
@@ -594,13 +643,17 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND))
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_DATABUS)) // k - Data Bus Test
+			handle_databusTest(&req);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ADDRBUS)) // K - Address Bus Test
+			handle_addressbusTest(&req);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND)) // x - Random Pattern Test
 			handle_memoryTest_rnd(&req, 0);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV))
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV)) // X - Random Pattern Test + Reverse
 			handle_memoryTest_rnd(&req, 1);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES))
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES)) // y - Walking Ones Test
 			handle_memoryTest_ones(&req, 0);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV))
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV)) // Y - Walking Ones Test + Reverse
 			handle_memoryTest_ones(&req, 1);
 		else
 			bootstrap_TxNack("Unknown command");

@@ -27,6 +27,8 @@ const CMD_MEMORYTEST_RND = 'x';
 const CMD_MEMORYTEST_RND_REV = 'X';
 const CMD_MEMORYTEST_ONES = 'y';
 const CMD_MEMORYTEST_ONES_REV = 'Y';
+const CMD_MEMORYTEST_DATABUS = 'k';
+const CMD_MEMORYTEST_ADDRBUS = 'K';
 
 
 let cur_stage = "connect";	// Initial "tab"
@@ -666,6 +668,16 @@ function startSerial()
 		}
     });
 
+    
+
+	document.getElementById('memorytest_dataBus').addEventListener('click', async() => {
+		await execute_memoryTest(CMD_MEMORYTEST_DATABUS);
+	});
+
+	document.getElementById('memorytest_addressBus').addEventListener('click', async() => {
+		await execute_memoryTest(CMD_MEMORYTEST_ADDRBUS);
+	});
+
     document.getElementById('memorytest_chip_rnd').addEventListener('click', async() => {
   		if(document.getElementById("memorytest_chip_rnd_reversed").checked) {
   			await execute_memoryTest(CMD_MEMORYTEST_RND_REV);
@@ -689,10 +701,16 @@ function startSerial()
 			setStatus("Executing Memory Test - 0% done");
 			let cont = await completeRequest(port, fmtReq(TESTID, 0));
 
-			while(cont.length == 0) {
+			console.log(cont);
+			while(cont.length == 0 || cont.data.indexOf("debug:") > -1) {
 				// Get response from port_reader stream
 				cont = await readRequest();
 			    setStatus("Executing Memory Test - "+(counter++)+"% done", true);
+
+			    console.log(cont);
+			    if(cont.length > 0 && cont.data.indexOf("debug:") > -1) {
+			    	console.log("debug data: " + cont.data);
+			    }
 			}
 
 			setStatus("Memory test done - Result: " + cont.data);
