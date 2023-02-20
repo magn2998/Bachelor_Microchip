@@ -685,6 +685,7 @@ function startSerial()
 			console.log("Memory Default Initialization Done");
 			console.log(cont);
 
+			restoreButtons(s);
 			enableMemoryTestSection();
 			
 		} catch(e) {
