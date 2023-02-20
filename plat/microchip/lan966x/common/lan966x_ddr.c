@@ -1645,13 +1645,13 @@ static void lan966x_init(void)
 }
 #endif /* LAN966X_ASIC */
 
-void lan966x_ddr_init(void)
-{
-#ifdef LAN966X_ASIC
-	wr_fld_r_r (CHIP_TOP, DDR_PLL_CFG, DDR_PLL_CFG, DIVF, params_clk_div);
-	DDR_initialization();
-	ecc_enable_scrubbing();
-#else
-	lan966x_init();
-#endif
-}
+// void lan966x_ddr_init(void)
+// {
+// #ifdef LAN966X_ASIC
+// 	wr_fld_r_r (CHIP_TOP, DDR_PLL_CFG, DDR_PLL_CFG, DIVF, params_clk_div);
+// 	DDR_initialization();
+// 	ecc_enable_scrubbing();
+// #else
+// 	lan966x_init();
+// #endif
+// }

@@ -34,6 +34,140 @@ const CMD_MEMORYTEST_ONES_REV = 'Y';
 const CMD_MEMORYTEST_DATABUS = 'k';
 const CMD_MEMORYTEST_ADDRBUS = 'K';
 
+let lan966x_ddr_config_test = {
+	info: {
+		name: "lan966x 2023-02-16-13:13:16 3b56a817a142",
+		speed: 0x000004b0, // 1200
+		size: 0x40000000,
+		bus_width: 0x00000010, // 16 
+	},
+	main: {
+		dfimisc: 0x00000000,
+		dfitmg0: 0x04030102,
+		dfitmg1: 0x00040201,
+		dfiupd0: 0x40400003,
+		dfiupd1: 0x004000ff,
+		ecccfg0: 0x003f7f40,
+		init0: 0x00020124,
+		init1: 0x00740000,
+		init3: 0x1b600000,
+		init4: 0x00100000,
+		init5: 0x00080000,
+		mstr: 0x01040001,
+		pccfg: 0x00000000,
+		pwrctl: 0x00000000,
+		rfshctl0: 0x00210010,
+		rfshctl3: 0x00000000,
+	},
+
+	timing: {
+		dramtmg0: 0x0a0f160c,
+		dramtmg1: 0x00020211,
+		dramtmg2: 0x00000508,
+		dramtmg3: 0x0000400c,
+		dramtmg4: 0x05020306,
+		dramtmg5: 0x04040303,
+		dramtmg8: 0x00000803,
+		odtcfg: 0x0600060c,
+		rfshtmg: 0x00620057,
+	},
+
+	mapping: {
+		addrmap0: 0x0000001f,
+		addrmap1: 0x00181818,
+		addrmap2: 0x00000000,
+		addrmap3: 0x00000000,
+		addrmap4: 0x00001f1f,
+		addrmap5: 0x04040404,
+		addrmap6: 0x04040404,
+	},
+
+	phy: {
+		dcr: 0x0000040b,
+		dsgcr: 0xf000641f,
+		dtcr: 0x910035c7,
+		dxccr: 0x44181884,
+		pgcr2: 0x00f0b540,
+	},
+
+	phy_timing: {
+		dtpr0: 0xc958ea85,
+		dtpr1: 0x228bb3c4,
+		dtpr2: 0x1002e8b4,
+		mr0: 0x00001b60,
+		mr1: 0x00000004,
+		mr2: 0x00000010,
+		mr3: 0x00000000,
+		ptr0: 0x25a12c90,
+		ptr1: 0x754f0a8f,
+		ptr2: 0x00083def,
+		ptr3: 0x0b449000,
+		ptr4: 0x06add000,
+	}
+};
+
+let lan966x_ddr_config_test_as_array = {
+	name: "lan966x 2023-02-16-13:13:16 3b56a817a142",
+	data: [
+		0x000004b0, // speed (1200)
+		0x40000000, // size
+		0x00000010, // : bus_width (16) 
+
+		0x00000000, // main: dfimisc
+		0x04030102, // main: dfitmg0
+		0x00040201, // main: dfitmg1
+		0x40400003, // main: dfiupd0
+		0x004000ff, // main: dfiupd1
+		0x003f7f40, // main: ecccfg0
+		0x00020124, // main: init0
+		0x00740000, // main: init1
+		0x1b600000, // main: init3
+		0x00100000, // main: init4
+		0x00080000, // main: init5
+		0x01040001, // main: mstr
+		0x00000000, // main: pccfg
+		0x00000000, // main: pwrctl
+		0x00210010, // main: rfshctl0
+		0x00000000, // main: rfshctl3
+
+		0x0a0f160c, // timing: dramtmg0
+		0x00020211, // timing: dramtmg1
+		0x00000508, // timing: dramtmg2
+		0x0000400c, // timing: dramtmg3
+		0x05020306, // timing: dramtmg4
+		0x04040303, // timing: dramtmg5
+		0x00000803, // timing: dramtmg8
+		0x0600060c, // timing: odtcfg
+		0x00620057, // timing: rfshtmg
+
+		0x0000001f, // mapping: addrmap0
+		0x00181818, // mapping: addrmap1
+		0x00000000, // mapping: addrmap2
+		0x00000000, // mapping: addrmap3
+		0x00001f1f, // mapping: addrmap4
+		0x04040404, // mapping:addrmap5
+		0x04040404, // mapping:addrmap6
+
+		0x0000040b, // phy: dcr
+		0xf000641f, // phy: dsgcr
+		0x910035c7, // phy: dtcr
+		0x44181884, // phy: dxccr
+		0x00f0b540, // phy: pgcr2
+
+		0xc958ea85, // phy_timing: dtpr0
+		0x228bb3c4, // phy_timing: dtpr1
+		0x1002e8b4, // phy_timing: dtpr2
+		0x00001b60, // phy_timing: mr0
+		0x00000004, // phy_timing: mr1
+		0x00000010, // phy_timing: mr2
+		0x00000000, // phy_timing: mr3
+		0x25a12c90, // phy_timing: ptr0
+		0x754f0a8f, // phy_timing: ptr1
+		0x00083def, // phy_timing: ptr2
+		0x0b449000, // phy_timing: ptr3
+		0x06add000  // phy_timing: ptr4
+	]
+}
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -81,6 +215,31 @@ function validResponse(r)
     var m = r.match(/>(\w),([0-9a-f]{8}),([0-9a-f]{8})(#|%)(.+)/i);
     //console.log(m);
     return m;
+}
+
+// Generates two request in order to send a total of 336 bytes
+function format_ddr_config_to_hexString() {
+	let req1 = CMD_MEMORYCONFIG_INIT_CUSTOM + ',' + fmtHex(1);
+	req1 += ',' + fmtHex(256);
+	req1 += CMD_DELIM_HEX;
+	for(let i = 0; i < lan966x_ddr_config_test_as_array.name.length; i++) {
+		req1+= lan966x_ddr_config_test_as_array.name.charCodeAt(i).toString(16).padStart(2, "0");
+	}
+	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) {
+		req1 += "00";
+	}
+	for(let i = 0; i < 32; i++) { // Adds the remaining 128 bytes aka. 32 4 byte integers
+		req1 += lan966x_ddr_config_test_as_array.data[i].toString(16).padStart(8,"0");
+	}
+
+    
+	let req2 = CMD_MEMORYCONFIG_INIT_CUSTOM + ',' + fmtHex(2);
+	req2 += ',' + fmtHex(80);
+	for(let i = 0; i < 20; i++) { // Adds the remaining 80 bytes aka. 20 4 byte integers
+		req2 += lan966x_ddr_config_test_as_array.data[32+i].toString(16).padStart(8,"0");
+	}
+
+    return [req1, req2];
 }
 
 class BootstrapRequestTransformer {
@@ -341,7 +500,9 @@ async function downloadApp(port, appdata, binary)
 	while (bytesSent < appdata.length) {
 	    let chunk = appdata.substr(bytesSent, chunkSize);
 	    //console.log("Sending at offset: %d", bytesSent);
-	    await completeRequest(port, fmtReq(CMD_DATA, bytesSent, chunk, binary));
+		let req = fmtReq(CMD_DATA, bytesSent, chunk, binary);
+		console.log(req);
+	    await completeRequest(port, req);
 	    bytesSent += chunk.length;
 	    if (bytesSent % (5 * 1024))
 		setStatus("Sent " + bytesSent + " bytes (" + (bytesSent * 100 / appdata.length).toFixed().toString(10) + "%)", true);
