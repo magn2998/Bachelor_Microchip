@@ -37,6 +37,8 @@ static void setup_ns_access(uintptr_t gpv, uintptr_t tzpm)
 			TZPM_TZPCTL1_XDMA(1) |
 			TZPM_TZPCTL1_QSPI1(1) |
 			TZPM_TZPCTL1_TRNG(1));
+	mmio_setbits_32(TZPM_TZPCTL2(tzpm),
+			TZPM_TZPCTL2_PKCC(1));
 	mmio_setbits_32(TZPM_TZPCTL3(tzpm),
 			TZPM_TZPCTL3_RTE(1) |
 			TZPM_TZPCTL3_FDMA(1));
@@ -179,6 +181,10 @@ void lan966x_tz_init(void)
 	/* Configure OTP for Non-Secure */
 	mmio_write_32(GPV_SECURITY_APB_CSS2(LAN966X_GPV_BASE),
 		      BIT(0));
+
+	/* Configure SECURITY_QSPI1 for Non-secure */
+	mmio_write_32(GPV_SECURITY_QSPI1(LAN966X_GPV_BASE),
+		      GPV_SECURITY_QSPI1_SECURITY_QSPI1(1));
 
 	/* NS periph access */
 	setup_ns_access(LAN966X_GPV_BASE, LAN966X_TZPM_BASE);
