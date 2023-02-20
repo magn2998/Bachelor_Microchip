@@ -194,9 +194,9 @@ inline static uint32_t poll_sw_ack(uint16_t msg_id) { // default 1ms
 
 #define _DDR_DUMMY 0
 uint8_t DDR_initialization(void) {
-uint32_t var;
-uint32_t stat;
-uint32_t timeout;
+  uint32_t var;
+  uint32_t stat;
+  uint32_t timeout;
 
   // Check if already booting from DDR therefore DDR is initialized
   // if (rd_fld_r(CPU, CPU_REGS, GENERAL_CTRL, BOOT_MODE_ENA) == 0) {

@@ -24,6 +24,7 @@
 #include "otp.h"
 
 
+
 #define MAX_OTP_DATA	1024
 
 #define PAGE_ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
@@ -53,7 +54,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	// Numbers to generate seemingly random pattern
 	uint8_t modulo = 251;
 	uint8_t factor = 13;
-	uint8_t start = 3;
+	uint8_t start = 17;
 	uint8_t cntr = 0;
 	
 	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
@@ -257,6 +258,16 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 	bootstrap_TxAckData("Test Success", 13);
 }
 
+
+static void handle_setup_ddr_memory_default(bootstrap_req_t *req) {
+	lan966x_ddr_init();
+	
+	bootstrap_TxAckData("Running DDR Memory Init Function", 33);
+}
+
+static void handle_setup_ddr_memory_custom(bootstrap_req_t *req) {
+	bootstrap_TxAckData("Running DDR Memory Custom Function", 35);
+}
 
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
 {
@@ -660,6 +671,10 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_DEFAULT)) // k - Data Bus Test
+			handle_setup_ddr_memory_default(&req);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_CUSTOM)) // k - Data Bus Test
+			handle_setup_ddr_memory_custom(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_DATABUS)) // k - Data Bus Test
 			handle_databusTest(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ADDRBUS)) // K - Address Bus Test

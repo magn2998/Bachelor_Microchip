@@ -50,7 +50,8 @@ void bl2u_platform_setup(void)
 	lan966x_io_setup();
 
 	/* Initialize DDR */
-	lan966x_ddr_init();
+	// Disabled for the time being - Magnus Meyer
+	// lan966x_ddr_init();
 
 	/* Prepare fw_config from applicable boot source */
 	if (lan966x_bootable_source()) {

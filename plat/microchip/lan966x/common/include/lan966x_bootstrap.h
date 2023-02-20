@@ -51,6 +51,10 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
+// DDR Memory Initialization Default Configuration
+#define BOOTSTRAP_MEMORY_INIT_DEFAULT 'F'
+// DDR Memory Initialization Custom Configuration
+#define BOOTSTRAP_MEMORY_INIT_CUSTOM 'f'
 // Memory Data Bus Test
 #define BOOTSTRAP_MEMORYTEST_DATABUS  'k'
 // Memory Address Bus Test

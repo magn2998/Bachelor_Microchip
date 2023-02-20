@@ -23,6 +23,10 @@ const CMD_BL2U_BIND ='B';
 const CMD_BL2U_OTP_READ_RAW ='l';
 const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
+
+const CMD_MEMORYCONFIG_INIT_DEFAULT = 'F';
+const CMD_MEMORYCONFIG_INIT_CUSTOM = 'f';
+
 const CMD_MEMORYTEST_RND = 'x';
 const CMD_MEMORYTEST_RND_REV = 'X';
 const CMD_MEMORYTEST_ONES = 'y';
@@ -669,6 +673,64 @@ function startSerial()
     });
 
     
+
+	document.getElementById("memory_config_setup_default_btn").addEventListener('click', async() => {
+		let s = disableButtons("bl2u", true);
+		
+		try {
+			setStatus("Initializing the DDR Memory with Default parameters");
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_DEFAULT, 0));
+
+			console.log("Memory Default Initialization Done");
+			console.log(cont);
+
+			enableMemoryTestSection();
+			
+		} catch(e) {
+			setStatus("Memory test encountered an error: " + e);
+			restoreButtons(s);
+		}
+	});
+
+	document.getElementById("memory_config_setup_btn").addEventListener('click', async() => {
+		let s = disableButtons("bl2u", true);
+		
+		try {
+			setStatus("Initializing the DDR Memory with Custom parameters");
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_CUSTOM, 0));
+
+			console.log("Memory Custom Initialization Done");
+			console.log(cont);
+			
+			restoreButtons(s);
+			enableMemoryTestSection();
+			
+		} catch(e) {
+			setStatus("Memory test encountered an error: " + e);
+			restoreButtons(s);
+		} 
+	});
+
+
+	const enableMemoryTestSection = ()=>{
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed"];
+		for(let i = 0; i < inputIds.length; i++) {
+			document.getElementById(inputIds[i]).disabled = false;
+		}
+	}
+
+	const disableMemoryTestSection = ()=> {
+		console.log("DISBALING");
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed"];
+		for(let i = 0; i < inputIds.length; i++) {
+			document.getElementById(inputIds[i]).disabled = true;
+		}
+	}
+
+
+
 	let databusReps = 1;
 	document.getElementById('memorytest_dataBus').addEventListener('click', async() => {
 		await execute_memoryTest(CMD_MEMORYTEST_DATABUS, "data bus memory test", databusReps);
@@ -788,11 +850,15 @@ function startSerial()
 	    await delaySkipInput(port, 2000);
 	    let fwu_vers = await completeRequest(port, fmtReq(CMD_VERS, 0));
 	    setStatus("BL2U operational: " + fwu_vers["data"]);
+
 	    setStage("bl2u");
 	} catch(e) {
 	    setStatus(e);
 	} finally {
 	    restoreButtons(s);
+
+		// Disable buttons for memory testing - they're reenabled when the DDR memory is setup in function enableMemoryTestSection
+		disableMemoryTestSection();
 	}
     });
 
@@ -892,7 +958,12 @@ function startSerial()
 		addTrace("Device: " + rspStruct["data"] + "\n" +
 			 "- which is not identified as a known boot ROM.\n" +
 			 "It is assumed that the active software is a BL2U version");
+		
 		setStage("bl2u");
+
+		// Disable buttons for memory testing - they're reenabled when the DDR memory is setup in function enableMemoryTestSection
+		// TODO: If it has reached this state BL2U was loaded in another session - add way to check whether memory is already setup or not
+		disableMemoryTestSection();
 	    }
 	} catch (e) {
 	    console.log("Connect failed: " + e);
