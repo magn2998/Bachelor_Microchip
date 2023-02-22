@@ -219,13 +219,13 @@ function validResponse(r)
 
 // Generates two request in order to send a total of 336 bytes
 function format_ddr_config_to_hexString() {
-	let req1 = CMD_MEMORYCONFIG_INIT_CUSTOM + ',' + fmtHex(1);
+	let req1 = CMD_DATA + ',' + fmtHex(1);
 	req1 += ',' + fmtHex(256);
 	req1 += CMD_DELIM_HEX;
 	for(let i = 0; i < lan966x_ddr_config_test_as_array.name.length; i++) {
 		req1+= lan966x_ddr_config_test_as_array.name.charCodeAt(i).toString(16).padStart(2, "0");
 	}
-	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) {
+	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) { // Add zeros for the remaning bytes not used in the name string
 		req1 += "00";
 	}
 	for(let i = 0; i < 32; i++) { // Adds the remaining 128 bytes aka. 32 4 byte integers
@@ -233,8 +233,9 @@ function format_ddr_config_to_hexString() {
 	}
 
     
-	let req2 = CMD_MEMORYCONFIG_INIT_CUSTOM + ',' + fmtHex(2);
+	let req2 = CMD_DATA + ',' + fmtHex(2);
 	req2 += ',' + fmtHex(80);
+	req2 += CMD_DELIM_HEX;
 	for(let i = 0; i < 20; i++) { // Adds the remaining 80 bytes aka. 20 4 byte integers
 		req2 += lan966x_ddr_config_test_as_array.data[32+i].toString(16).padStart(8,"0");
 	}
@@ -501,7 +502,6 @@ async function downloadApp(port, appdata, binary)
 	    let chunk = appdata.substr(bytesSent, chunkSize);
 	    //console.log("Sending at offset: %d", bytesSent);
 		let req = fmtReq(CMD_DATA, bytesSent, chunk, binary);
-		console.log(req);
 	    await completeRequest(port, req);
 	    bytesSent += chunk.length;
 	    if (bytesSent % (5 * 1024))
@@ -735,17 +735,17 @@ function startSerial()
 	if (image.length) {
 	    let s = disableButtons("bl2u", true);
 	    try {
-		await downloadApp(port, image, document.getElementById("binary").checked);
-		// Do explicit uncompress
-		setStatus("Decompressing");
-		var rspStruct = await completeRequest(port, fmtReq(CMD_UNZIP, 0));
-		var datalen = rspStruct["arg"].toString(16).padStart(8, "0");
-		var status = rspStruct["data"];
-		setStatus("Data received: " + status + ", length " + rspStruct["arg"].toString(10));
+			await downloadApp(port, image, document.getElementById("binary").checked);
+			// Do explicit uncompress
+			setStatus("Decompressing");
+			var rspStruct = await completeRequest(port, fmtReq(CMD_UNZIP, 0));
+			var datalen = rspStruct["arg"].toString(16).padStart(8, "0");
+			var status = rspStruct["data"];
+			setStatus("Data received: " + status + ", length " + rspStruct["arg"].toString(10));
 	    } catch(e) {
-		setStatus("Failed upload: " + e);
+			setStatus("Failed upload: " + e);
 	    } finally {
-		restoreButtons(s);
+			restoreButtons(s);
 	    }
 	}
     });
@@ -862,9 +862,21 @@ function startSerial()
 			setStatus("Initializing the DDR Memory with Custom parameters");
 
 			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_CUSTOM, 0));
+			console.log(cont);
+			let reqs = format_ddr_config_to_hexString();
+
+			for(let i = 0; i < reqs.length; i++) {
+				cont = await completeRequest(port, reqs[i]);
+				console.log(cont);
+				if(cont.command != "a") {
+					break;
+				}
+				let responseFromReq = await readRequest();
+				console.log("HEO: " + i);
+				console.log(responseFromReq);
+			}
 
 			console.log("Memory Custom Initialization Done");
-			console.log(cont);
 			
 			restoreButtons(s);
 			enableMemoryTestSection();

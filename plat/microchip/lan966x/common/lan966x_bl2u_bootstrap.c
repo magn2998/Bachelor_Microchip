@@ -267,6 +267,34 @@ static void handle_setup_ddr_memory_default(bootstrap_req_t *req) {
 }
 
 static void handle_setup_ddr_memory_custom(bootstrap_req_t *req) {
+	uint8_t data[336]; // Size of entire config file is 336 characters exactly
+	uint8_t* dataPtr = data;
+	int num_bytes = 0;
+	int offset = 1;
+
+	// Signal it is ready to receive data from client
+	bootstrap_TxAck();
+
+	// Read Data from request into data
+	num_bytes = bootstrap_RxData(dataPtr, offset, 256); // First request is 256 chars long
+
+	if(num_bytes != 256) {
+		bootstrap_TxAckData("Failed1", 8);
+	} else {
+		bootstrap_TxAckData(dataPtr, 256); // Send back what data it receive for debugging purposes
+	}
+	
+
+	
+	offset++;
+	dataPtr += 256; // Move pointer 256 characters up to concatenate data from the two request
+	num_bytes = bootstrap_RxData(dataPtr, offset, 80); // Second request is 80 characters long (336-256)
+	if(num_bytes != 80) {
+		bootstrap_TxAckData("Failed2", 8);
+	} else {
+		bootstrap_TxAckData(data, 336); // Send back what data (all of it) it received for debugging purposes
+	}
+	
 	bootstrap_TxAckData("Running DDR Memory Custom Function", 35);
 }
 
