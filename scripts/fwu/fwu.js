@@ -34,6 +34,8 @@ const CMD_MEMORYTEST_ONES_REV = 'Y';
 const CMD_MEMORYTEST_DATABUS = 'k';
 const CMD_MEMORYTEST_ADDRBUS = 'K';
 
+var globalVar;
+
 let lan966x_ddr_config_test = {
 	info: {
 		name: "lan966x 2023-02-16-13:13:16 3b56a817a142",
@@ -150,8 +152,8 @@ let lan966x_ddr_config_test_as_array = {
 
 		0x0000040b, // phy: dcr
 		0xf000641f, // phy: dsgcr
-		0x910035c7, // phy: dtcr
-		0x44181884, // phy: dxccr
+		0x91000101, // phy: dtcr
+		0x44180101, // phy: dxccr
 		0x00f0b540, // phy: pgcr2
 
 		0xc958ea85, // phy_timing: dtpr0
@@ -168,6 +170,7 @@ let lan966x_ddr_config_test_as_array = {
 		0x06add000  // phy_timing: ptr4
 	]
 }
+//ffdfdf
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -222,25 +225,32 @@ function format_ddr_config_to_hexString() {
 	let req1 = CMD_DATA + ',' + fmtHex(1);
 	req1 += ',' + fmtHex(256);
 	req1 += CMD_DELIM_HEX;
+	// First add the string to the request
 	for(let i = 0; i < lan966x_ddr_config_test_as_array.name.length; i++) {
 		req1+= lan966x_ddr_config_test_as_array.name.charCodeAt(i).toString(16).padStart(2, "0");
 	}
-	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) { // Add zeros for the remaning bytes not used in the name string
+	// Add zeros for the remaning bytes not used in the name string
+	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) { 
 		req1 += "00";
 	}
-	for(let i = 0; i < 32; i++) { // Adds the remaining 128 bytes aka. 32 4 byte integers
-		req1 += lan966x_ddr_config_test_as_array.data[i].toString(16).padStart(8,"0");
+	// Adds the remaining 128 bytes aka. 32 4 byte integers
+	for(let i = 0; i < 32; i++) { 
+		req1 += BigEndianToSmallEndianHexString(lan966x_ddr_config_test_as_array.data[i].toString(16).padStart(8,"0"));
 	}
 
-    
+	// For the second request, add the remaining 80 bytes of data
 	let req2 = CMD_DATA + ',' + fmtHex(2);
 	req2 += ',' + fmtHex(80);
 	req2 += CMD_DELIM_HEX;
-	for(let i = 0; i < 20; i++) { // Adds the remaining 80 bytes aka. 20 4 byte integers
-		req2 += lan966x_ddr_config_test_as_array.data[32+i].toString(16).padStart(8,"0");
+	for(let i = 0; i < 20; i++) { 
+		req2 += BigEndianToSmallEndianHexString(lan966x_ddr_config_test_as_array.data[32+i].toString(16).padStart(8,"0"));
 	}
 
     return [req1, req2];
+}
+
+function BigEndianToSmallEndianHexString(hexString) { // E.g. 0x12345bcf => 0xcf5b3412
+	return hexString[6] + hexString[7] + hexString[4] + hexString[5] + hexString[2] + hexString[3] + hexString[0] + hexString[1]; 
 }
 
 class BootstrapRequestTransformer {
@@ -843,8 +853,7 @@ function startSerial()
 
 			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_DEFAULT, 0));
 
-			console.log("Memory Default Initialization Done");
-			console.log(cont);
+			setStatus("Finished Initializing Default Memory Config - Result: " + cont.data);
 
 			restoreButtons(s);
 			enableMemoryTestSection();
@@ -871,13 +880,23 @@ function startSerial()
 				if(cont.command != "a") {
 					break;
 				}
-				let responseFromReq = await readRequest();
-				console.log("HEO: " + i);
-				console.log(responseFromReq);
 			}
 
-			console.log("Memory Custom Initialization Done");
-			
+			console.log("mimimmimmmmi");
+			// for(let i = 0; i < 53; i++) {
+			// 	cont = await readRequest();
+			// 	var result = "";
+			// 	for (let o=0; o<cont.data.length; o++) {
+			// 		let hex = cont.data.charCodeAt(o).toString(16);
+			// 		result += ("000"+hex).slice(-2);
+			// 	}
+
+			// 	console.log(result);
+			// }
+
+			cont = await readRequest();
+			setStatus("Finished Initializing Custom Memory Config - Result: " + cont.data);
+
 			restoreButtons(s);
 			enableMemoryTestSection();
 			
@@ -1167,4 +1186,86 @@ function startSerial()
 	tracing = inp.checked;
 	console.log("trace setting: %o", tracing);
     });
+
+
+	document.getElementById("memory_config_setup_default_config").addEventListener('click', ()=>{
+		
+	});
+
+	document.getElementById("memory_config_setup_choose_config").addEventListener('click', ()=>{
+		document.getElementById("memory_config_setup_choose_config_input").click();
+	});
+
+	document.getElementById("memory_config_setup_choose_config_input").addEventListener('change', (e)=>{
+		console.log(e.target.files);
+		console.log(e.target.files[0]);
+
+		if(!e.target.files[0]) {
+			return;
+		}
+
+		var reader = new FileReader();
+		// Set OnLoad callback
+		reader.onload = function(e){
+			let loadedObj = jsyaml.load(e.target.result);
+			if(typeof loadedObj !== "object") return;
+
+			// Begin to load object!
+			globalVar = loadedObj;
+
+			for(var key in loadedObj.config) {
+				document.getElementById(key).value = "0x"+(loadedObj.config[key].toString(16)).padStart(8,"0");
+			}
+
+			document.getElementById("config_field_define_info_Name").value = loadedObj.info["version"];
+			document.getElementById("config_field_define_info_Speed").value = "0x"+(loadedObj.info["speed"].toString(16)).padStart(8,"0");
+			document.getElementById("config_field_define_info_Size").value = "0x"+(parseInt(loadedObj.info["mem_size_mb"])*1024*1024).toString(16).padStart(8,"0"); // Convert to bytes from mega bytes
+			document.getElementById("config_field_define_info_Bus_Width").value = "0x"+(loadedObj.info["bus_width"].toString(16)).padStart(8,"0");
+			
+
+
+
+
+		};	
+		// Read file into memory as UTF-16
+		reader.readAsText(e.target.files[0], "utf8");
+	})
+
+
+
+	document.getElementById("config_field_selecter").addEventListener('change', (e)=>{
+		console.log("clicked");
+		console.log(e);
+		console.log(e.target.value);
+
+		// Remove visibility of previosly shown section
+		for(var elem of document.getElementsByClassName("config_field_define_area_clicked")) {
+			elem.classList.remove("config_field_define_area_clicked");
+		}
+
+		// Add visibility for clicked element
+		switch(e.target.value) {
+			case 'info':
+				document.getElementById("config_field_define_info").classList.add("config_field_define_area_clicked");
+				break;
+			case 'main':
+				document.getElementById("config_field_define_main").classList.add("config_field_define_area_clicked");
+				break;
+			case 'timing':
+				document.getElementById("config_field_define_timing").classList.add("config_field_define_area_clicked");
+				break;
+			case 'mapping':
+				document.getElementById("config_field_define_mapping").classList.add("config_field_define_area_clicked");
+				break;
+			case 'phy':
+				document.getElementById("config_field_define_phy").classList.add("config_field_define_area_clicked");
+				break;
+			case 'phy_timing':
+				document.getElementById("config_field_define_phy_timing").classList.add("config_field_define_area_clicked");
+				break;
+			default:
+				break;
+			
+		}
+	})
 }

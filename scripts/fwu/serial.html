@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Secure Boot Management</title>
   <script src="crc32c.js"></script>
+  <script src="js-yaml.js"></script> 
   <script src="sha256.js"></script>
   <script src="fwu.js"></script>
   <script src="fwu_app_lan966x_b0.js"></script>
@@ -52,6 +53,45 @@
 		text-align: center;
 		font-weight: bold;
 	}
+
+
+	.config_field_define_area {
+		display: none;
+
+	}
+
+	.config_field_define_area div {
+		display: inline-block;
+		margin-top: 5px;
+	}
+
+	.config_field_define_area div label {
+		display: block;
+		text-align: left;
+		margin-left: 7px;
+		font-weight: bold;
+	}
+
+	.config_field_define_area_clicked {
+		display: block;
+	}
+	.config_field_define_input {
+		width: 100px;
+		margin: 5px;
+	}
+	.config_field_define_input_name {
+		width: 320px;
+		margin: 5px;
+	}
+	.config_field_container {
+		margin-top: 10px;
+		width: 500px;
+		height: 215px;
+		text-align: center;
+	}
+
+	
+
     </style>
 </head>
 <body onload="startSerial()">
@@ -245,7 +285,110 @@
 		<p style="margin:0px;">Enter the configuration parameters below to initialise the DDR memory</p>
 		<p style="margin:0 0 20px 0;">Alternatively, you can use the default configuration.</p>
 
-		<table >
+		<label for="config_field">Setting:</label>
+		<select name="config_field" id="config_field_selecter">
+			<option value="info" selected>Info</option>
+			<option value="main">Main</option>
+			<option value="timing">Timing</option>
+			<option value="mapping">Mapping</option>
+			<option value="phy">Phy</option>
+			<option value="phy_timing">Phy-Timing</option>
+		</select>
+
+		<button type="button" id="memory_config_setup_default_config">Load Default Config</button>
+		<button type="button" id="memory_config_setup_choose_config">Choose Config</button>
+		<input style="display:none;" type="file" id="memory_config_setup_choose_config_input" accept=".yaml">
+		
+
+		<div class="config_field_container">
+			<div class="config_field_define_area config_field_define_area_clicked" id="config_field_define_info">
+				<div><label>Name</label><input class="config_field_define_input_name" id="config_field_define_info_Name" placeholder="Name"/></div><br/>
+				<div><label>Speed</label><input class="config_field_define_input" id="config_field_define_info_Speed" placeholder="Speed"/></div>
+				<div><label>Size (bytes)</label><input class="config_field_define_input" id="config_field_define_info_Size" placeholder="Size"/></div>
+				<div><label>Bus width (bits)</label><input class="config_field_define_input" id="config_field_define_info_Bus_Width" placeholder="Bus Width"/></div>
+			</div>
+
+			<div class="config_field_define_area" id="config_field_define_main">
+				<div><label>dfimisc</label><input class="config_field_define_input" id="dfimisc" placeholder="dfimisc"/></div>
+				<div><label>dfitmg0</label><input class="config_field_define_input" id="dfitmg0" placeholder="dfitmg0"/></div>
+				<div><label>dfitmg1</label><input class="config_field_define_input" id="dfitmg1" placeholder="dfitmg1"/></div>
+				<div><label>dfiupd0</label><input class="config_field_define_input" id="dfiupd0" placeholder="dfiupd0"/></div>
+				<div><label>dfiupd1</label><input class="config_field_define_input" id="dfiupd1" placeholder="dfiupd1"/></div>
+				<div><label>ecccfg0</label><input class="config_field_define_input" id="ecccfg0" placeholder="ecccfg0"/></div>
+				<div><label>init0</label><input class="config_field_define_input" id="init0" placeholder="init0"/></div>
+				<div><label>init1</label><input class="config_field_define_input" id="init1" placeholder="init1"/></div>
+				<div><label>init3</label><input class="config_field_define_input" id="init3" placeholder="init3"/></div>
+				<div><label>init4</label><input class="config_field_define_input" id="init4" placeholder="init4"/></div>
+				<div><label>init5</label><input class="config_field_define_input" id="init5" placeholder="init5"/></div>
+				<div><label>mstr</label><input class="config_field_define_input" id="mstr" placeholder="mstr"/></div>
+				<div><label>pccfg</label><input class="config_field_define_input" id="pccfg" placeholder="pccfg"/></div>
+				<div><label>pwrctl</label><input class="config_field_define_input" id="pwrctl" placeholder="pwrctl"/></div>
+				<div><label>rfshctl0</label><input class="config_field_define_input" id="rfshctl0" placeholder="rfshctl0"/></div>
+				<div><label>rfshctl3</label><input class="config_field_define_input" id="rfshctl3" placeholder="rfshctl3"/></div>
+			</div>
+
+			<div class="config_field_define_area" id="config_field_define_timing">
+				<div><label>dramtmg0</label><input class="config_field_define_input" id="dramtmg0" placeholder="dramtmg0"/></div>
+				<div><label>dramtmg1</label><input class="config_field_define_input" id="dramtmg1" placeholder="dramtmg1"/></div>
+				<div><label>dramtmg2</label><input class="config_field_define_input" id="dramtmg2" placeholder="dramtmg2"/></div>
+				<div><label>dramtmg3</label><input class="config_field_define_input" id="dramtmg3" placeholder="dramtmg3"/></div>
+				<div><label>dramtmg4</label><input class="config_field_define_input" id="dramtmg4" placeholder="dramtmg4"/></div>
+				<div><label>dramtmg5</label><input class="config_field_define_input" id="dramtmg5" placeholder="dramtmg5"/></div>
+				<div><label>dramtmg8</label><input class="config_field_define_input" id="dramtmg8" placeholder="dramtmg8"/></div>
+				<div><label>odtcfg</label><input class="config_field_define_input" id="odtcfg" placeholder="odtcfg"/></div>
+				<div><label>rfshtmg</label><input class="config_field_define_input" id="rfshtmg" placeholder="rfshtmg"/></div>
+			</div>
+
+			<div class="config_field_define_area" id="config_field_define_mapping">
+				<div><label>addrmap0</label><input class="config_field_define_input" id="addrmap0" placeholder="addrmap0"/></div>
+				<div><label>addrmap1</label><input class="config_field_define_input" id="addrmap1" placeholder="addrmap1"/></div>
+				<div><label>addrmap2</label><input class="config_field_define_input" id="addrmap2" placeholder="addrmap2"/></div>
+				<div><label>addrmap3</label><input class="config_field_define_input" id="addrmap3" placeholder="addrmap3"/></div>
+				<div><label>addrmap4</label><input class="config_field_define_input" id="addrmap4" placeholder="addrmap4"/></div>
+				<div><label>addrmap5</label><input class="config_field_define_input" id="addrmap5" placeholder="addrmap5"/></div>
+				<div><label>addrmap6</label><input class="config_field_define_input" id="addrmap6" placeholder="addrmap6"/></div>
+			</div>
+
+			<div class="config_field_define_area" id="config_field_define_phy">
+				<div><label>dcr</label><input class="config_field_define_input" id="dcr" placeholder="dcr"/></div>
+				<div><label>dsgcr</label><input class="config_field_define_input" id="dsgcr" placeholder="dsgcr"/></div>
+				<div><label>dtcr</label><input class="config_field_define_input" id="dtcr" placeholder="dtcr"/></div>
+				<div><label>dxccr</label><input class="config_field_define_input" id="dxccr" placeholder="dxccr"/></div>
+				<div><label>pgcr2</label><input class="config_field_define_input" id="pgcr2" placeholder="pgcr2"/></div>
+			</div>
+
+			<div class="config_field_define_area" id="config_field_define_phy_timing">
+				
+				<div><label>dtpr0</label><input class="config_field_define_input" id="dtpr0" placeholder="dtpr0"/></div>
+				<div><label>dtpr1</label><input class="config_field_define_input" id="dtpr1" placeholder="dtpr1"/></div>
+				<div><label>dtpr2</label><input class="config_field_define_input" id="dtpr2" placeholder="dtpr2"/></div>
+				<div><label>mr0</label><input class="config_field_define_input" id="mr0" placeholder="mr0"/></div>
+				<div><label>mr1</label><input class="config_field_define_input" id="mr1" placeholder="mr1"/></div>
+				<div><label>mr2</label><input class="config_field_define_input" id="mr2" placeholder="mr2"/></div>
+				<div><label>mr3</label><input class="config_field_define_input" id="mr3" placeholder="mr3"/></div>
+				<div><label>ptr0</label><input class="config_field_define_input" id="ptr0" placeholder="ptr0"/></div>
+				<div><label>ptr1</label><input class="config_field_define_input" id="ptr1" placeholder="ptr1"/></div>
+				<div><label>ptr2</label><input class="config_field_define_input" id="ptr2" placeholder="ptr2"/></div>
+				<div><label>ptr3</label><input class="config_field_define_input" id="ptr3" placeholder="ptr3"/></div>
+				<div><label>ptr4</label><input class="config_field_define_input" id="ptr4" placeholder="ptr4"/></div>
+			</div>
+
+		</div>
+
+		<!-- <div class="select-config-field">
+			<input type="radio" id="a25" name="check-substitution-2" />
+			<label class="btn btn-default" for="a25">Læg i kurv</label>
+		</div>
+		<div class="select-config-field">
+			<input type="radio" id="a50" name="check-substitution-2" />
+			<label class="btn btn-default" for="a50">Læg i kurv</label>
+		</div>
+		<div class="select-config-field">
+			<input type="radio" id="a75" name="check-substitution-2" />
+			<label class="btn btn-default" for="a75">Læg i kurv</label>
+		</div> -->
+
+		<!-- <table >
 			<tr>
 				<td><input class="memory_config_input" id="memory_config_parm_1" placeholder="Parameter 1"/></td>
 				<td><input class="memory_config_input" id="memory_config_parm_2" placeholder="Parameter 2"/></td>
@@ -270,7 +413,7 @@
 				<td><input class="memory_config_input" id="memory_config_parm_15" placeholder="Parameter 15"/></td>
 				<td><input class="memory_config_input" id="memory_config_parm_16" placeholder="Parameter 16"/></td>
 			</tr>
-		</table>
+		</table> -->
 
 		<div style="margin: 20px 0px;">
 			<button style="" type="button" id="memory_config_setup_default_btn">Config Default</button>
