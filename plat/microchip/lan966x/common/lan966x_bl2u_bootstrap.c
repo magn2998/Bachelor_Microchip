@@ -262,6 +262,10 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 }
 
 
+static void handle_read_ddr_configuration(bootstrap_req_t *req) {
+	bootstrap_TxAckData((void*)&lan966x_ddr_config, 336);
+}
+
 static void handle_setup_ddr_memory_default(bootstrap_req_t *req) {
 	lan966x_ddr_init();
 	
@@ -270,28 +274,18 @@ static void handle_setup_ddr_memory_default(bootstrap_req_t *req) {
 
 static void handle_setup_ddr_memory_custom(bootstrap_req_t *req) {
 	uint8_t data[336]; // Size of entire config file is 336 characters exactly
-	uint8_t* dataPtr = data;
 	int num_bytes = 0;
-	int offset = 1;
 
 	// Signal it is ready to receive data from client
 	bootstrap_TxAck();
 
 	// Read Data from request into data
-	num_bytes = bootstrap_RxData(dataPtr, offset, 256); // First request is 256 chars long
+	num_bytes = bootstrap_RxData(data, 1, 336); // Read the request - 336 bytes long
 
-	if(num_bytes != 256) {
-		bootstrap_TxAckData("Failed1", 8);
+	if(num_bytes != 336) {
+		bootstrap_TxAckData("Failed uploading config", 24);
 	} 
 	
-
-	
-	offset++;
-	dataPtr += 256; // Move pointer 256 characters up to concatenate data from the two request
-	num_bytes = bootstrap_RxData(dataPtr, offset, 80); // Second request is 80 characters long (336-256)
-	if(num_bytes != 80) {
-		bootstrap_TxAckData("Failed2", 8);
-	} 
 
 	// Next Step is to load data into the ddr_config type, which is defined in include/ddr_config.h
 	// Since the size of the values are matching, we can simply point to the data!
@@ -300,74 +294,6 @@ static void handle_setup_ddr_memory_custom(bootstrap_req_t *req) {
 	ddr_init(uploaded_config);
 
 	bootstrap_TxAckData("Successfully Uploaded Configuration", 36);
-	
-	// ddr_nsleep(100);
-	// bootstrap_TxAckData(uploaded_config->info.name, 128);
-	// ddr_nsleep(100);
-	// bootstrap_TxAckData((void*)uploaded_config, 336);
-	// ddr_nsleep(100);
-	// const struct ddr_config *cfg =	&lan966x_ddr_config;
-	// bootstrap_TxAckData((void*)cfg, 336);
-	// char str[5];
-
-	// int_to_string(uploaded_config->info.speed, str);
-	// bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->info.size, str);
-	// bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->info.bus_width, str);
-	// bootstrap_TxAckData(str, 5);
-
-	// int_to_string(uploaded_config->main.dfimisc, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.dfitmg0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.dfitmg1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.dfiupd0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.dfiupd1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.ecccfg0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.init0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.init1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.init3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.init4, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.init5, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.mstr, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.pccfg, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.pwrctl, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.rfshctl0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->main.rfshctl3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg4, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg5, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.dramtmg8, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.odtcfg, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->timing.rfshtmg, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap4, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap5, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->mapping.addrmap6, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy.dcr, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy.dsgcr, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy.dtcr, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy.dxccr, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy.pgcr2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.dtpr0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.dtpr1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.dtpr2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.mr0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.mr1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.mr2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.mr3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.ptr0, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.ptr1, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.ptr2, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.ptr3, str);bootstrap_TxAckData(str, 5);
-	// int_to_string(uploaded_config->phy_timing.ptr4, str);bootstrap_TxAckData(str, 5);
-
-	
 }
 
 static void handle_otp_read(bootstrap_req_t *req, bool raw)
@@ -772,6 +698,8 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
+		else if(is_cmd(&req, BOOTSTRAP_DDR_CONFIG_READOUT))
+			handle_read_ddr_configuration(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_DEFAULT)) // k - Data Bus Test
 			handle_setup_ddr_memory_default(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_CUSTOM)) // k - Data Bus Test

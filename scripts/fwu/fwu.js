@@ -24,6 +24,7 @@ const CMD_BL2U_OTP_READ_RAW ='l';
 const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
 
+const CMD_MEMORYCONFIG_READ = 'h';
 const CMD_MEMORYCONFIG_INIT_DEFAULT = 'F';
 const CMD_MEMORYCONFIG_INIT_CUSTOM = 'f';
 
@@ -36,141 +37,79 @@ const CMD_MEMORYTEST_ADDRBUS = 'K';
 
 var globalVar;
 
-let lan966x_ddr_config_test = {
+// Interface Object - contains all keys neccessary for the ddr config
+let ddr_config_interface ={
 	info: {
-		name: "lan966x 2023-02-16-13:13:16 3b56a817a142",
-		speed: 0x000004b0, // 1200
-		size: 0x40000000,
-		bus_width: 0x00000010, // 16 
+		version: '',
+		speed: '', 
+		size: '', 
+		bus_width: '',  
 	},
 	main: {
-		dfimisc: 0x00000000,
-		dfitmg0: 0x04030102,
-		dfitmg1: 0x00040201,
-		dfiupd0: 0x40400003,
-		dfiupd1: 0x004000ff,
-		ecccfg0: 0x003f7f40,
-		init0: 0x00020124,
-		init1: 0x00740000,
-		init3: 0x1b600000,
-		init4: 0x00100000,
-		init5: 0x00080000,
-		mstr: 0x01040001,
-		pccfg: 0x00000000,
-		pwrctl: 0x00000000,
-		rfshctl0: 0x00210010,
-		rfshctl3: 0x00000000,
+		dfimisc: '',
+		dfitmg0: '',
+		dfitmg1: '',
+		dfiupd0: '',
+		dfiupd1: '',
+		ecccfg0: '',
+		init0: '',
+		init1: '',
+		init3: '',
+		init4: '',
+		init5: '',
+		mstr: '',
+		pccfg: '',
+		pwrctl: '',
+		rfshctl0: '',
+		rfshctl3: '',
 	},
 
 	timing: {
-		dramtmg0: 0x0a0f160c,
-		dramtmg1: 0x00020211,
-		dramtmg2: 0x00000508,
-		dramtmg3: 0x0000400c,
-		dramtmg4: 0x05020306,
-		dramtmg5: 0x04040303,
-		dramtmg8: 0x00000803,
-		odtcfg: 0x0600060c,
-		rfshtmg: 0x00620057,
+		dramtmg0: '',
+		dramtmg1: '',
+		dramtmg2: '',
+		dramtmg3: '',
+		dramtmg4: '',
+		dramtmg5: '',
+		dramtmg8: '',
+		odtcfg: '',
+		rfshtmg: '',
 	},
 
 	mapping: {
-		addrmap0: 0x0000001f,
-		addrmap1: 0x00181818,
-		addrmap2: 0x00000000,
-		addrmap3: 0x00000000,
-		addrmap4: 0x00001f1f,
-		addrmap5: 0x04040404,
-		addrmap6: 0x04040404,
+		addrmap0: '',
+		addrmap1: '',
+		addrmap2: '',
+		addrmap3: '',
+		addrmap4: '',
+		addrmap5: '',
+		addrmap6: '',
 	},
 
 	phy: {
-		dcr: 0x0000040b,
-		dsgcr: 0xf000641f,
-		dtcr: 0x910035c7,
-		dxccr: 0x44181884,
-		pgcr2: 0x00f0b540,
+		dcr: '',
+		dsgcr: '',
+		dtcr: '',
+		dxccr: '',
+		pgcr2: '',
 	},
 
 	phy_timing: {
-		dtpr0: 0xc958ea85,
-		dtpr1: 0x228bb3c4,
-		dtpr2: 0x1002e8b4,
-		mr0: 0x00001b60,
-		mr1: 0x00000004,
-		mr2: 0x00000010,
-		mr3: 0x00000000,
-		ptr0: 0x25a12c90,
-		ptr1: 0x754f0a8f,
-		ptr2: 0x00083def,
-		ptr3: 0x0b449000,
-		ptr4: 0x06add000,
+		dtpr0: '',
+		dtpr1: '',
+		dtpr2: '',
+		mr0: '',
+		mr1: '',
+		mr2: '',
+		mr3: '',
+		ptr0: '',
+		ptr1: '',
+		ptr2: '',
+		ptr3: '',
+		ptr4: '',
 	}
-};
-
-let lan966x_ddr_config_test_as_array = {
-	name: "lan966x 2023-02-16-13:13:16 3b56a817a142",
-	data: [
-		0x000004b0, // speed (1200)
-		0x40000000, // size
-		0x00000010, // : bus_width (16) 
-
-		0x00000000, // main: dfimisc
-		0x04030102, // main: dfitmg0
-		0x00040201, // main: dfitmg1
-		0x40400003, // main: dfiupd0
-		0x004000ff, // main: dfiupd1
-		0x003f7f40, // main: ecccfg0
-		0x00020124, // main: init0
-		0x00740000, // main: init1
-		0x1b600000, // main: init3
-		0x00100000, // main: init4
-		0x00080000, // main: init5
-		0x01040001, // main: mstr
-		0x00000000, // main: pccfg
-		0x00000000, // main: pwrctl
-		0x00210010, // main: rfshctl0
-		0x00000000, // main: rfshctl3
-
-		0x0a0f160c, // timing: dramtmg0
-		0x00020211, // timing: dramtmg1
-		0x00000508, // timing: dramtmg2
-		0x0000400c, // timing: dramtmg3
-		0x05020306, // timing: dramtmg4
-		0x04040303, // timing: dramtmg5
-		0x00000803, // timing: dramtmg8
-		0x0600060c, // timing: odtcfg
-		0x00620057, // timing: rfshtmg
-
-		0x0000001f, // mapping: addrmap0
-		0x00181818, // mapping: addrmap1
-		0x00000000, // mapping: addrmap2
-		0x00000000, // mapping: addrmap3
-		0x00001f1f, // mapping: addrmap4
-		0x04040404, // mapping:addrmap5
-		0x04040404, // mapping:addrmap6
-
-		0x0000040b, // phy: dcr
-		0xf000641f, // phy: dsgcr
-		0x91000101, // phy: dtcr
-		0x44180101, // phy: dxccr
-		0x00f0b540, // phy: pgcr2
-
-		0xc958ea85, // phy_timing: dtpr0
-		0x228bb3c4, // phy_timing: dtpr1
-		0x1002e8b4, // phy_timing: dtpr2
-		0x00001b60, // phy_timing: mr0
-		0x00000004, // phy_timing: mr1
-		0x00000010, // phy_timing: mr2
-		0x00000000, // phy_timing: mr3
-		0x25a12c90, // phy_timing: ptr0
-		0x754f0a8f, // phy_timing: ptr1
-		0x00083def, // phy_timing: ptr2
-		0x0b449000, // phy_timing: ptr3
-		0x06add000  // phy_timing: ptr4
-	]
 }
-//ffdfdf
+
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -221,32 +160,94 @@ function validResponse(r)
 }
 
 // Generates two request in order to send a total of 336 bytes
-function format_ddr_config_to_hexString() {
-	let req1 = CMD_DATA + ',' + fmtHex(1);
-	req1 += ',' + fmtHex(256);
-	req1 += CMD_DELIM_HEX;
+function format_ddr_config_to_hexString(ddrConfig) {
+	let ddrConfig_array = DDRconfigToArray(ddrConfig);
+
+	let req = CMD_DATA + ',' + fmtHex(1);
+	req += ',' + fmtHex(336);
+	req += CMD_DELIM_HEX;
 	// First add the string to the request
-	for(let i = 0; i < lan966x_ddr_config_test_as_array.name.length; i++) {
-		req1+= lan966x_ddr_config_test_as_array.name.charCodeAt(i).toString(16).padStart(2, "0");
+	for(let i = 0; i < ddrConfig_array.name.length; i++) {
+		req += ddrConfig_array.name.charCodeAt(i).toString(16).padStart(2, "0");
 	}
 	// Add zeros for the remaning bytes not used in the name string
-	for(let i = 0; i < 128 - lan966x_ddr_config_test_as_array.name.length; i++) { 
-		req1 += "00";
+	for(let i = 0; i < 128 - ddrConfig_array.name.length; i++) { 
+		req += "00";
 	}
-	// Adds the remaining 128 bytes aka. 32 4 byte integers
-	for(let i = 0; i < 32; i++) { 
-		req1 += BigEndianToSmallEndianHexString(lan966x_ddr_config_test_as_array.data[i].toString(16).padStart(8,"0"));
-	}
-
-	// For the second request, add the remaining 80 bytes of data
-	let req2 = CMD_DATA + ',' + fmtHex(2);
-	req2 += ',' + fmtHex(80);
-	req2 += CMD_DELIM_HEX;
-	for(let i = 0; i < 20; i++) { 
-		req2 += BigEndianToSmallEndianHexString(lan966x_ddr_config_test_as_array.data[32+i].toString(16).padStart(8,"0"));
+	// Adds the remaining 208 bytes aka. 52 4 byte integers
+	for(let i = 0; i < 52; i++) { 
+		req += BigEndianToSmallEndianHexString(ddrConfig_array.data[i].toString(16).padStart(8,"0"));
 	}
 
-    return [req1, req2];
+    return req;
+}
+
+function DDRconfigToArray(ddrConfig) {
+	let ddrArray = {
+		name: ddrConfig.info.version,
+		data: [
+			ddrConfig.info.speed,
+			(ddrConfig.info.size === undefined ? ddrConfig.info.mem_size_mb : ddrConfig.info.size), // Size can either be given as MB or simply bytes.. this covers both cases
+			ddrConfig.info.bus_width
+		] 
+	}
+
+	// Push every data field in the correct order
+	PushKeysInOrderToArray(ddrConfig.main);
+	PushKeysInOrderToArray(ddrConfig.timing);
+	PushKeysInOrderToArray(ddrConfig.mapping);
+	PushKeysInOrderToArray(ddrConfig.phy);
+	PushKeysInOrderToArray(ddrConfig.phy_timing);
+	
+	return ddrArray;
+	function PushKeysInOrderToArray(obj) {
+		let keys = Object.keys(obj).sort(); // Get keys and sort them
+		for(var key of keys) {
+			ddrArray.data.push(parseInt(obj[key]));
+		}
+	}
+}
+
+// Does the inverse of function DDRconfigToArray
+function DDRarrayToConfig(dataStr) {
+	// Begin by reading the version / name
+	ddr_config_interface.info.version = '';
+	for(let i = 0; i < 128; i++) { // Name is max 128 characters long
+		if(dataStr[i] === '\0') { // If it is null character => end of string
+			break;
+		}
+		ddr_config_interface.info.version += dataStr[i];
+	}
+	ddr_config_interface.info.speed     = ReadFieldFromDataArray(dataStr, 128);
+	ddr_config_interface.info.size      = ReadFieldFromDataArray(dataStr, 132);
+	ddr_config_interface.info.bus_width = ReadFieldFromDataArray(dataStr, 136);
+
+	let newIdx = LoadValueIntoObject(ddr_config_interface.main, dataStr, 140);
+		newIdx = LoadValueIntoObject(ddr_config_interface.timing, dataStr, newIdx);
+		newIdx = LoadValueIntoObject(ddr_config_interface.mapping, dataStr, newIdx);
+		newIdx = LoadValueIntoObject(ddr_config_interface.phy, dataStr, newIdx);
+		newIdx = LoadValueIntoObject(ddr_config_interface.phy_timing, dataStr, newIdx);
+
+	return ddr_config_interface;
+	function LoadValueIntoObject(obj, dataStr, idx) {
+		let keys = Object.keys(obj).sort();
+		for(let i = 0; i < keys.length; i++) {
+			obj[keys[i]] = ReadFieldFromDataArray(dataStr, idx+i*4);
+		}
+		return idx+keys.length*4;
+	}	
+}
+
+// Reads a 4 byte data field from a given indes of a data array
+function ReadFieldFromDataArray(dataStr, idx) {
+	let char1 = dataStr.charCodeAt(idx); // Read first character
+	let char2 = dataStr.charCodeAt(idx+1); // Read second character
+	let char3 = dataStr.charCodeAt(idx+2); // Read third character
+	let char4 = dataStr.charCodeAt(idx+3); // Read fourth character
+	let val = 0 | char4;
+	val = (val << 0x8) | char3;
+	val = (val << 0x8) | char2;
+	return ((val << 0x8) | char1) >>> 0; // Unsigned right shift - converts signed Javascript integer into unsigned
 }
 
 function BigEndianToSmallEndianHexString(hexString) { // E.g. 0x12345bcf => 0xcf5b3412
@@ -845,66 +846,7 @@ function startSerial()
 
     
 
-	document.getElementById("memory_config_setup_default_btn").addEventListener('click', async() => {
-		let s = disableButtons("bl2u", true);
-		
-		try {
-			setStatus("Initializing the DDR Memory with Default parameters");
-
-			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_DEFAULT, 0));
-
-			setStatus("Finished Initializing Default Memory Config - Result: " + cont.data);
-
-			restoreButtons(s);
-			enableMemoryTestSection();
-			
-		} catch(e) {
-			setStatus("Memory test encountered an error: " + e);
-			restoreButtons(s);
-		}
-	});
-
-	document.getElementById("memory_config_setup_btn").addEventListener('click', async() => {
-		let s = disableButtons("bl2u", true);
-		
-		try {
-			setStatus("Initializing the DDR Memory with Custom parameters");
-
-			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_CUSTOM, 0));
-			console.log(cont);
-			let reqs = format_ddr_config_to_hexString();
-
-			for(let i = 0; i < reqs.length; i++) {
-				cont = await completeRequest(port, reqs[i]);
-				console.log(cont);
-				if(cont.command != "a") {
-					break;
-				}
-			}
-
-			console.log("mimimmimmmmi");
-			// for(let i = 0; i < 53; i++) {
-			// 	cont = await readRequest();
-			// 	var result = "";
-			// 	for (let o=0; o<cont.data.length; o++) {
-			// 		let hex = cont.data.charCodeAt(o).toString(16);
-			// 		result += ("000"+hex).slice(-2);
-			// 	}
-
-			// 	console.log(result);
-			// }
-
-			cont = await readRequest();
-			setStatus("Finished Initializing Custom Memory Config - Result: " + cont.data);
-
-			restoreButtons(s);
-			enableMemoryTestSection();
-			
-		} catch(e) {
-			setStatus("Memory test encountered an error: " + e);
-			restoreButtons(s);
-		} 
-	});
+	
 
 
 	const enableMemoryTestSection = ()=>{
@@ -1188,8 +1130,26 @@ function startSerial()
     });
 
 
-	document.getElementById("memory_config_setup_default_config").addEventListener('click', ()=>{
+	document.getElementById("memory_config_setup_default_config").addEventListener('click', async ()=>{		
+		let s = disableButtons("bl2u", true);
 		
+		try {
+			setStatus("Reading out DDR configuration");
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_READ, 0));
+			let ddrConfigObj = DDRarrayToConfig(cont.data);
+			loadDDRconfigToDOM(ddrConfigObj);
+		
+			setStatus("Finished Reading Out Config");
+
+			restoreButtons(s);
+			
+		} catch(e) {
+			setStatus("Memory Configuration Readout encountered an error: " + e);
+			restoreButtons(s);
+		}
+
+
 	});
 
 	document.getElementById("memory_config_setup_choose_config").addEventListener('click', ()=>{
@@ -1208,64 +1168,182 @@ function startSerial()
 		// Set OnLoad callback
 		reader.onload = function(e){
 			let loadedObj = jsyaml.load(e.target.result);
-			if(typeof loadedObj !== "object") return;
 
 			// Begin to load object!
+			loadDDRconfigToDOM(loadedObj);
 			globalVar = loadedObj;
-
-			for(var key in loadedObj.config) {
-				document.getElementById(key).value = "0x"+(loadedObj.config[key].toString(16)).padStart(8,"0");
-			}
-
-			document.getElementById("config_field_define_info_Name").value = loadedObj.info["version"];
-			document.getElementById("config_field_define_info_Speed").value = "0x"+(loadedObj.info["speed"].toString(16)).padStart(8,"0");
-			document.getElementById("config_field_define_info_Size").value = "0x"+(parseInt(loadedObj.info["mem_size_mb"])*1024*1024).toString(16).padStart(8,"0"); // Convert to bytes from mega bytes
-			document.getElementById("config_field_define_info_Bus_Width").value = "0x"+(loadedObj.info["bus_width"].toString(16)).padStart(8,"0");
-			
-
-
-
-
 		};	
 		// Read file into memory as UTF-16
 		reader.readAsText(e.target.files[0], "utf8");
 	})
 
+	function loadDDRconfigToDOM(ddrConfig) {
+		if(typeof ddrConfig !== "object") return flase; // If it is not a valid object, return false
 
-
-	document.getElementById("config_field_selecter").addEventListener('change', (e)=>{
-		console.log("clicked");
-		console.log(e);
-		console.log(e.target.value);
-
-		// Remove visibility of previosly shown section
-		for(var elem of document.getElementsByClassName("config_field_define_area_clicked")) {
-			elem.classList.remove("config_field_define_area_clicked");
+		if(!checkOrSetDDRconfig(ddrConfig, true)){
+			alert("Config file not valid!");
+			return;
 		}
 
-		// Add visibility for clicked element
-		switch(e.target.value) {
-			case 'info':
-				document.getElementById("config_field_define_info").classList.add("config_field_define_area_clicked");
-				break;
-			case 'main':
-				document.getElementById("config_field_define_main").classList.add("config_field_define_area_clicked");
-				break;
-			case 'timing':
-				document.getElementById("config_field_define_timing").classList.add("config_field_define_area_clicked");
-				break;
-			case 'mapping':
-				document.getElementById("config_field_define_mapping").classList.add("config_field_define_area_clicked");
-				break;
-			case 'phy':
-				document.getElementById("config_field_define_phy").classList.add("config_field_define_area_clicked");
-				break;
-			case 'phy_timing':
-				document.getElementById("config_field_define_phy_timing").classList.add("config_field_define_area_clicked");
-				break;
-			default:
-				break;
+		checkOrSetDDRconfig(ddrConfig, false);
+
+		document.getElementById("config_field_define_info_Name").value = ddrConfig.info["version"];
+		document.getElementById("config_field_define_info_Speed").value = "0x"+(ddrConfig.info["speed"].toString(16).toUpperCase()).padStart(8,"0");
+
+		if(ddrConfig.info["mem_size_mb"]) {
+			document.getElementById("config_field_define_info_Size").value = "0x"+(parseInt(ddrConfig.info["mem_size_mb"])*1024*1024).toString(16).toUpperCase().padStart(8,"0"); // Convert to bytes from mega bytes
+		} else {
+			document.getElementById("config_field_define_info_Size").value = "0x"+(ddrConfig.info["size"]).toString(16).toUpperCase().padStart(8,"0"); // Convert to hex
+		}
+
+		
+		document.getElementById("config_field_define_info_Bus_Width").value = "0x"+(ddrConfig.info["bus_width"].toString(16).toUpperCase()).padStart(8,"0");
+		return true;
+	}
+
+	// Function to recursively check object and its children - Check == true => Only check field are valid and otherwise set the field in GUI
+	function checkOrSetDDRconfig(config, check) {
+		for(var key in config) {
+			if(key === 'info') continue; // Information field should be handled on its own
+			if(typeof config[key] === 'object') {
+				// Recursively check children
+				if(!checkOrSetDDRconfig(config[key], check)){
+					return false; // If one children fail, return false otherwise keep checking!
+				}
+			} else if(!document.getElementById(key)) {
+				return false; // If the key is not a field found in the GUI there is a mismatch - abort and return false
+			} else if(!check) {
+				document.getElementById(key).value = "0x"+(config[key].toString(16).toUpperCase()).padStart(8,"0");
+			}
+		}
+		return true;
+	}
+
+
+	document.getElementById("memory_config_setup_default_btn").addEventListener('click', async() => {
+		let s = disableButtons("bl2u", true);
+		
+		try {
+			setStatus("Initializing the DDR Memory with Default parameters");
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_DEFAULT, 0));
+
+			setStatus("Finished Initializing Default Memory Config - Result: " + cont.data);
+
+			restoreButtons(s);
+			enableMemoryTestSection();
 			
+		} catch(e) {
+			setStatus("Memory configuration encountered an error: " + e);
+			restoreButtons(s);
 		}
-	})
+	});
+
+	document.getElementById("memory_config_setup_btn").addEventListener('click', async() => {
+		let s = disableButtons("bl2u", true);
+		
+		try {
+			setStatus("Initializing the DDR Memory with Custom parameters");
+
+			let success = GetDDRconfigFromDOM(); // Create the object from the DOM
+			if(!success) {
+				throw "Given config is not valid!";
+			}
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_CUSTOM, 0));
+			console.log(cont);
+
+			let req = format_ddr_config_to_hexString(ddr_config_interface); // Pass this object to the formatter
+			console.log(req);
+			cont = await completeRequest(port, req);
+
+			console.log(cont);
+			cont = await readRequest();
+			setStatus("Finished Initializing Custom Memory Config - Result: " + cont.data);
+
+			restoreButtons(s);
+			enableMemoryTestSection();
+			
+		} catch(e) {
+			setStatus("Memory configuration encountered an error: " + e);
+			restoreButtons(s);
+		} 
+	});
+
+	function GetDDRconfigFromDOM() {
+		// ddr_config_interface
+		ddr_config_interface.info.version = document.getElementById('config_field_define_info_Name').value;
+		ddr_config_interface.info.speed = document.getElementById('config_field_define_info_Speed').value;
+		ddr_config_interface.info.size = document.getElementById('config_field_define_info_Size').value;
+		ddr_config_interface.info.bus_width = document.getElementById('config_field_define_info_Bus_Width').value;		
+
+		// Recursively get all values - input field have the same ID as the keys - returns true if it was succesfull
+		return (function(obj){
+			for(var key in obj) {
+				if(key === "info") continue; // Info fiels are set manually
+
+				if(typeof obj[key] === "object") {
+					if(!arguments.callee(obj[key])) { // Recursively find children
+						return false; // If some child false, abort this and return false
+					}
+				} else {
+					let parsedValue = parseInt(document.getElementById(key).value);
+					if(!parsedValue && parsedValue != 0) {
+						alert(key + " is not formatted correctly! Got: " + document.getElementById(key).value);
+						return false;
+					}
+
+					obj[key] = parsedValue;
+				}
+			}
+			return true;
+
+		})(ddr_config_interface);
+	}
+
+
+	for(var elem of document.getElementsByClassName("config_field_selector")) {
+
+		elem.addEventListener('click', (e)=>{
+			// Remove visibility of previosly shown section
+			for(var elem of document.getElementsByClassName("config_field_define_area_clicked")) {
+				elem.classList.remove("config_field_define_area_clicked");
+			}
+			// Remove clicked color of previosly clicked tabs
+			for(var elem of document.getElementsByClassName("config_field_selector_clicked")) {
+				elem.classList.remove("config_field_selector_clicked");
+			}
+
+			// Add clicked styling to the clicked tab
+			e.target.classList.add("config_field_selector_clicked");
+
+			// Add visibility for clicked element
+			switch(e.target.innerText) {
+				case 'Info':
+					document.getElementById("config_field_define_info").classList.add("config_field_define_area_clicked");
+					break;
+				case 'Main':
+					document.getElementById("config_field_define_main").classList.add("config_field_define_area_clicked");
+					break;
+				case 'Timing':
+					document.getElementById("config_field_define_timing").classList.add("config_field_define_area_clicked");
+					break;
+				case 'Mapping':
+					document.getElementById("config_field_define_mapping").classList.add("config_field_define_area_clicked");
+					break;
+				case 'Phy':
+					document.getElementById("config_field_define_phy").classList.add("config_field_define_area_clicked");
+					break;
+				case 'Phy-Timing':
+					document.getElementById("config_field_define_phy_timing").classList.add("config_field_define_area_clicked");
+					break;
+				default:
+					break;
+				
+			}
+
+			console.log("clicked!");
+		})
+	}
+	
 }

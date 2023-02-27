@@ -51,6 +51,8 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
+// Memory Configuration Read Out
+#define BOOTSTRAP_DDR_CONFIG_READOUT   'h'
 // DDR Memory Initialization Default Configuration
 #define BOOTSTRAP_MEMORY_INIT_DEFAULT 'F'
 // DDR Memory Initialization Custom Configuration
