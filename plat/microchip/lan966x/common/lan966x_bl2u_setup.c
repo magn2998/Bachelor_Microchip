@@ -28,11 +28,11 @@
 						BL_CODE_END - BL_CODE_BASE,	\
 						MT_CODE | MT_SECURE)
 
-
-#define ARM_MAP_DDR			MAP_REGION_FLAT(			\
-						LAN966X_DDR_BASE,			\
-						LAN966X_DDR_SIZE,	\
-						MT_MEMORY | MT_RW | MT_SECURE)
+#define LAN966X_MAP_DDR_MEM					\
+	MAP_REGION_FLAT(					\
+		LAN966X_DDR_BASE,				\
+		LAN966X_DDR_SIZE,				\
+		MT_MEMORY | MT_RW | MT_SECURE)
 
 static bool lan966x_bootable_source(void)
 {
@@ -113,7 +113,7 @@ void bl2u_plat_arch_setup(void)
 	const mmap_region_t bl_regions[] = {
 		MAP_BL2U_TOTAL,
 		ARM_MAP_BL_RO,
-		ARM_MAP_DDR,
+		LAN966X_MAP_DDR_MEM,
 		{0}
 	};
 
