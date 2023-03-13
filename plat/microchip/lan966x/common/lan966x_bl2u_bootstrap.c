@@ -134,16 +134,18 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 {
-	// uint32_t attr = MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
-	// int ret = xlat_change_mem_attributes(LAN966X_DDR_BASE, (LAN966X_DDR_BASE+0x200000), attr);
-	// if(ret != 0) {
-	// 	bootstrap_TxAckData("Unable to disable cache", 24);
-	// 	return;
-	// }
-	// bootstrap_TxAckData("Unable to disable kjscd", 24);
-	// return;
+	uint32_t attr = MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
+	int ret = xlat_change_mem_attributes(LAN966X_DDR_BASE, (LAN966X_DDR_SIZE), attr);
+	if(ret != 0) {
+		bootstrap_TxAckData("Unable to disable cache", 24);
+		return;
+	}
 	// Flush cache - ensures no data is accidently pushed to memory while running the test
-	// flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+	
+	bootstrap_TxAckData("Unable to disable kjscd", 24);
+	return;
+	
 
 
 
@@ -211,11 +213,11 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 	}
 
 
-	attr = MT_MEMORY | MT_RW | MT_SECURE;
-	ret = xlat_change_mem_attributes(fip_base_addr, fip_max_size, attr);
-	if(ret != 0) {
-		bootstrap_TxAckData("Unable to enable cache", 23);
-	}
+	// attr = MT_MEMORY | MT_RW | MT_SECURE;
+	// ret = xlat_change_mem_attributes(fip_base_addr, fip_max_size, attr);
+	// if(ret != 0) {
+	// 	bootstrap_TxAckData("Unable to enable cache", 23);
+	// }
 
 	// Test Succesfull if it hasn't returned by now
 	bootstrap_TxAckData("Test Success", 13);
