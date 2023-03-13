@@ -80,17 +80,17 @@ lan966x_fw_config_t lan966x_fw_config = {
 
 #ifdef IMAGE_BL1
 const mmap_region_t plat_arm_mmap[] = {
-	LAN966X_MAP_QSPI0,
-	LAN966X_MAP_AXI,
+	// LAN966X_MAP_QSPI0,
+	// LAN966X_MAP_AXI,
 	{0}
 };
 #endif
 #if defined(IMAGE_BL2)
 const mmap_region_t plat_arm_mmap[] = {
-	LAN966X_MAP_QSPI0,
-	LAN966X_MAP_AXI,
-	LAN966X_MAP_BL32,
-	LAN966X_MAP_NS_MEM,
+	// LAN966X_MAP_QSPI0,
+	// LAN966X_MAP_AXI,
+	// LAN966X_MAP_BL32,
+	// LAN966X_MAP_NS_MEM,
 	{0}
 };
 #endif
@@ -98,17 +98,17 @@ const mmap_region_t plat_arm_mmap[] = {
 const mmap_region_t plat_arm_mmap[] = {
 	LAN966X_MAP_QSPI0_RW,
 	LAN966X_MAP_AXI,
-	LAN966X_MAP_BL32,
-	LAN966X_MAP_NS_MEM,
+	// LAN966X_MAP_BL32,
+	// LAN966X_MAP_NS_MEM,
 	{0}
 };
 #endif
 #ifdef IMAGE_BL32
 const mmap_region_t plat_arm_mmap[] = {
-	LAN966X_MAP_QSPI0,
-	LAN966X_MAP_AXI,
-	LAN966X_MAP_BL32,
-	LAN966X_MAP_NS_MEM,
+	// LAN966X_MAP_QSPI0,
+	// LAN966X_MAP_AXI,
+	// LAN966X_MAP_BL32,
+	// LAN966X_MAP_NS_MEM,
 	{0}
 };
 #endif
