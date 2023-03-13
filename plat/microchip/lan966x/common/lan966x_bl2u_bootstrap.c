@@ -35,6 +35,8 @@
 #define PAGE_ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
 
 extern const struct ddr_config lan966x_ddr_config;
+static const struct ddr_config *current_ddr_config = &lan966x_ddr_config;
+
 static const uintptr_t fip_base_addr = LAN966X_DDR_BASE;
 static const uintptr_t fip_max_size = LAN966X_DDR_SIZE;
 static uint32_t data_rcv_length;
@@ -132,14 +134,16 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 {
-	uint32_t attr = MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
-	int ret = xlat_change_mem_attributes(LAN966X_DDR_BASE, LAN966X_DDR_SIZE, attr);
-	if(ret != 0) {
-		bootstrap_TxAckData("Unable to disable cache", 24);
-		return;
-	}
+	// uint32_t attr = MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
+	// int ret = xlat_change_mem_attributes(LAN966X_DDR_BASE, (LAN966X_DDR_BASE+0x200000), attr);
+	// if(ret != 0) {
+	// 	bootstrap_TxAckData("Unable to disable cache", 24);
+	// 	return;
+	// }
+	// bootstrap_TxAckData("Unable to disable kjscd", 24);
+	// return;
 	// Flush cache - ensures no data is accidently pushed to memory while running the test
-	flush_dcache_range((uint64_t) fip_base_addr, fip_max_size);
+	// flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
 
 
 
@@ -283,35 +287,29 @@ static void handle_addrBusTest(bootstrap_req_t *req)
 
 
 static void handle_read_ddr_configuration(bootstrap_req_t *req) {
-	bootstrap_TxAckData((void*)&lan966x_ddr_config, 336);
+	bootstrap_TxAckData((void*)current_ddr_config, sizeof lan966x_ddr_config);
 }
 
-static void handle_setup_ddr_memory_default(bootstrap_req_t *req) {
-	lan966x_ddr_init();
-	
-	bootstrap_TxAckData("Running DDR Memory Init Function", 33);
-}
 
-static void handle_setup_ddr_memory_custom(bootstrap_req_t *req) {
-	uint8_t data[336]; // Size of entire config file is 336 characters exactly
+static void handle_setup_ddr_memory_configuration(bootstrap_req_t *req) {
+	uint8_t data[sizeof lan966x_ddr_config]; // 
 	int num_bytes = 0;
 
 	// Signal it is ready to receive data from client
 	bootstrap_TxAck();
 
 	// Read Data from request into data
-	num_bytes = bootstrap_RxData(data, 1, 336); // Read the request - 336 bytes long
+	num_bytes = bootstrap_RxData(data, 1, sizeof lan966x_ddr_config); // Read the request - 336 bytes long
 
-	if(num_bytes != 336) {
+	if(num_bytes != (sizeof lan966x_ddr_config)) {
 		bootstrap_TxAckData("Failed uploading config", 24);
 	} 
 	
 
 	// Next Step is to load data into the ddr_config type, which is defined in include/ddr_config.h
 	// Since the size of the values are matching, we can simply point to the data!
-	struct ddr_config* uploaded_config;
-	uploaded_config = (struct ddr_config*) data;
-	ddr_init(uploaded_config);
+	current_ddr_config = (struct ddr_config*) data;
+	ddr_init(current_ddr_config);
 
 	bootstrap_TxAckData("Successfully Uploaded Configuration", 36);
 }
@@ -720,10 +718,8 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, true);
 		else if(is_cmd(&req, BOOTSTRAP_DDR_CONFIG_READOUT))
 			handle_read_ddr_configuration(&req);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_DEFAULT)) // k - Data Bus Test
-			handle_setup_ddr_memory_default(&req);
-		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_CUSTOM)) // k - Data Bus Test
-			handle_setup_ddr_memory_custom(&req);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_CUSTOM)) // f - Setup DDR Configuration
+			handle_setup_ddr_memory_configuration(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_DATABUS)) // k - Data Bus Test
 			handle_databusTest(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ADDRBUS)) // K - Address Bus Test

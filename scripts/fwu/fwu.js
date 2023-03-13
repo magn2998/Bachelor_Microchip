@@ -25,7 +25,6 @@ const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
 
 const CMD_MEMORYCONFIG_READ = 'h';
-const CMD_MEMORYCONFIG_INIT_DEFAULT = 'F';
 const CMD_MEMORYCONFIG_INIT_CUSTOM = 'f';
 
 const CMD_MEMORYTEST_RND = 'x';
@@ -92,6 +91,10 @@ let ddr_config_interface ={
 		dtcr: '',
 		dxccr: '',
 		pgcr2: '',
+		zq0cr0: '',
+		zq0cr1: '',
+		zq1cr0: '',
+		zq1cr1: '',
 	},
 
 	phy_timing: {
@@ -164,7 +167,7 @@ function format_ddr_config_to_hexString(ddrConfig) {
 	let ddrConfig_array = DDRconfigToArray(ddrConfig);
 
 	let req = CMD_DATA + ',' + fmtHex(1);
-	req += ',' + fmtHex(336);
+	req += ',' + fmtHex(128+ddrConfig_array.data.length*4); // Each field is 4 bytes long and the title is 128
 	req += CMD_DELIM_HEX;
 	// First add the string to the request
 	for(let i = 0; i < ddrConfig_array.name.length; i++) {
@@ -174,8 +177,8 @@ function format_ddr_config_to_hexString(ddrConfig) {
 	for(let i = 0; i < 128 - ddrConfig_array.name.length; i++) { 
 		req += "00";
 	}
-	// Adds the remaining 208 bytes aka. 52 4 byte integers
-	for(let i = 0; i < 52; i++) { 
+	// Adds the remaining 224 bytes aka. 56 4 byte integers
+	for(let i = 0; i < ddrConfig_array.data.length; i++) { 
 		req += BigEndianToSmallEndianHexString(ddrConfig_array.data[i].toString(16).padStart(8,"0"));
 	}
 
@@ -186,9 +189,9 @@ function DDRconfigToArray(ddrConfig) {
 	let ddrArray = {
 		name: ddrConfig.info.version,
 		data: [
-			ddrConfig.info.speed,
-			(ddrConfig.info.size === undefined ? ddrConfig.info.mem_size_mb : ddrConfig.info.size), // Size can either be given as MB or simply bytes.. this covers both cases
-			ddrConfig.info.bus_width
+			parseInt(ddrConfig.info.speed),
+			parseInt((ddrConfig.info.size === undefined ? ddrConfig.info.mem_size_mb : ddrConfig.info.size)), // Size can either be given as MB or simply bytes.. this covers both cases
+			parseInt(ddrConfig.info.bus_width)
 		] 
 	}
 
@@ -857,7 +860,6 @@ function startSerial()
 	}
 
 	const disableMemoryTestSection = ()=> {
-		console.log("DISBALING");
 		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = true;
@@ -1178,7 +1180,7 @@ function startSerial()
 	})
 
 	function loadDDRconfigToDOM(ddrConfig) {
-		if(typeof ddrConfig !== "object") return flase; // If it is not a valid object, return false
+		if(typeof ddrConfig !== "object") return false; // If it is not a valid object, return false
 
 		if(!checkOrSetDDRconfig(ddrConfig, true)){
 			alert("Config file not valid!");
@@ -1219,25 +1221,6 @@ function startSerial()
 		return true;
 	}
 
-
-	document.getElementById("memory_config_setup_default_btn").addEventListener('click', async() => {
-		let s = disableButtons("bl2u", true);
-		
-		try {
-			setStatus("Initializing the DDR Memory with Default parameters");
-
-			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_DEFAULT, 0));
-
-			setStatus("Finished Initializing Default Memory Config - Result: " + cont.data);
-
-			restoreButtons(s);
-			enableMemoryTestSection();
-			
-		} catch(e) {
-			setStatus("Memory configuration encountered an error: " + e);
-			restoreButtons(s);
-		}
-	});
 
 	document.getElementById("memory_config_setup_btn").addEventListener('click', async() => {
 		let s = disableButtons("bl2u", true);
@@ -1341,8 +1324,6 @@ function startSerial()
 					break;
 				
 			}
-
-			console.log("clicked!");
 		})
 	}
 	
