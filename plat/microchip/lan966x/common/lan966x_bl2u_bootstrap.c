@@ -70,8 +70,10 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	uint64_t memorySize = LAN966X_DDR_SIZE;
 
 
-	int a = 12;
-	int b =4;
+	uint32_t a = 0xffffffff;
+	uint32_t b  = 0xa;
+	uint32_t* addrB = &b; 
+	uint32_t c = 0x0;
     //        b into a aka. a = b
 	// asm ("mov %1, %0;"
 	//     :"=r"(a) // related to %0 - Output - Address of variable A
@@ -79,18 +81,23 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
  //    :);
 
 	//    Load word from address of b into register a with an offset of 0
-    asm ("ldr %0, [%1, #0];"
-	    :"=r"(a) // related to %0 - Output - Address of variable A
-	    :"r"(&b) // related to %1 - Input - 
-    :);
+    asm volatile (
+    	 "mov r1, %[OutputAddrB];"
+    	 "str %[vA], [r1, #0];"
+    	 "add r1, r1, #1;"
+    	 "str %[vA], [r1, #0];"
+    	 "ldr %[vC], [r1, #0];"
+	    : [vC] "+r" (c), [OutputAddrB] "+&r" (addrB)
+	    : [vA] "r" (a) 
+    	: "r1");
 
 
-	// if(a == 2) {
-	// 	bootstrap_TxAckData("A Equals 2", 11);
-	// 	return;
-	// }
-	// bootstrap_TxAckData("A Doesnt Equal 2", 17);
-	// return;
+	if(c == 0xffffffff) {
+		bootstrap_TxAckData("C Equals 0", 11);
+		return;
+	}
+	bootstrap_TxAckData("C Doesnt Equal 0", 17);
+	return;
 
 	// Populate Memory with data
 	cntr = start;

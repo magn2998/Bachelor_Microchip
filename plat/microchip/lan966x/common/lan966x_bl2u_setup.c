@@ -30,7 +30,7 @@
 
 #define LAN966X_MAP_DDR_MEM		MAP_REGION_FLAT(					\
 						LAN966X_DDR_BASE,				\
-						LAN966X_DDR_BASE,				\
+						LAN966X_DDR_SIZE,				\
 						MT_MEMORY | MT_RW | MT_SECURE | MT_EXECUTE_NEVER )
 
 static bool lan966x_bootable_source(void)
