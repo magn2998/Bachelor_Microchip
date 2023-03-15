@@ -70,7 +70,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	uint64_t memorySize = LAN966X_DDR_SIZE;
 
 
-	uint32_t a = 0xffffffff;
+	uint32_t a = 0x00ffffff;
 	uint32_t b  = 0xa;
 	uint32_t* addrB = &b; 
 	uint32_t c = 0x0;
@@ -82,17 +82,16 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 	//    Load word from address of b into register a with an offset of 0
     asm volatile (
-    	 "mov r1, %[OutputAddrB];"
-    	 "str %[vA], [r1, #0];"
-    	 "add r1, r1, #1;"
-    	 "str %[vA], [r1, #0];"
-    	 "ldr %[vC], [r1, #0];"
+    	"label1:"
+    	 "str %[vA], [%[OutputAddrB]], #4;"
+    	 "ldrb %[vC], [%[OutputAddrB]], #4;"
+    	 "B label1"
 	    : [vC] "+r" (c), [OutputAddrB] "+&r" (addrB)
 	    : [vA] "r" (a) 
-    	: "r1");
+    	: );
 
 
-	if(c == 0xffffffff) {
+	if(c == 0xff) {
 		bootstrap_TxAckData("C Equals 0", 11);
 		return;
 	}
@@ -176,7 +175,28 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 	bootstrap_TxAckData("Unable to disable kjscd", 24);
 	return;
 	
+	/* Pseudocode for walking ones algorithm
+		init pattern = 0x1; // Size of one word (32 bit)
+		for baseAddr until baseAddr+size as addr do:
+			memory[addr] = pattern;
+			addr += 4; // move up 4 bytes, aka. one word
+			if pattern is 0x80000000 (Most significant bit is 1), then set pattern = 0x1
+			else set pattern = pattern << 1 
+	
+		set pattern = 0x1;
+		for baseAddr until baseAddr+size as addr do:
+			read = memory[addr];
+			if read xor pattern != 0, stop and give error
+			addr += 4; // move up 4 bytes, aka. one word
+			if pattern is 0x80000000 (Most significant bit is 1), then set pattern = 0x1
+			else set pattern = pattern << 1 
+		stop and give success flag
+	*/
 
+	asm volatile (
+		";"
+
+		)
 
 
 	uint8_t val = 1; // 00000001
