@@ -472,7 +472,7 @@ int xlat_change_mem_attributes_ctx(const xlat_ctx_t *ctx, uintptr_t base_va,
 	/*
 	 * Sanity checks.
 	 */
-	for (unsigned int i = 0U; i < pages_count && base_va < 0x80000000; ++i) {
+	for (unsigned int i = 0U; i < pages_count; ++i) {
 		const uint64_t *entry;
 		uint64_t desc, attr_index;
 		unsigned int level;
@@ -495,11 +495,11 @@ int xlat_change_mem_attributes_ctx(const xlat_ctx_t *ctx, uintptr_t base_va,
 		 */
 		if (((desc & DESC_MASK) != PAGE_DESC) ||
 			(level != XLAT_TABLE_LEVEL_MAX)) {
-			// WARN("Address 0x%lx is not mapped at the right granularity.\n",
-			//      base_va);
-			// WARN("Granularity is 0x%lx, should be 0x%lx.\n",
-			//      XLAT_BLOCK_SIZE(level), PAGE_SIZE);
-			// return -EINVAL;
+			WARN("Address 0x%lx is not mapped at the right granularity.\n",
+			     base_va);
+			WARN("Granularity is 0x%lx, should be 0x%lx.\n",
+			     XLAT_BLOCK_SIZE(level), PAGE_SIZE);
+			return -EINVAL;
 		}
 
 		/*
@@ -520,7 +520,7 @@ int xlat_change_mem_attributes_ctx(const xlat_ctx_t *ctx, uintptr_t base_va,
 	/* Restore original value. */
 	base_va = base_va_original;
 
-	for (unsigned int i = 0U; i < pages_count && base_va < 0x80000000; ++i) {
+	for (unsigned int i = 0U; i < pages_count; ++i) {
 
 		uint32_t old_attr = 0U, new_attr;
 		uint64_t *entry = NULL;

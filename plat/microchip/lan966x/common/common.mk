@@ -31,6 +31,10 @@ WARMBOOT_ENABLE_DCACHE_EARLY	:=	1
 # Set FIP alignment inside fiptool to 4 bytes
 FIP_ALIGN		:= 4
 
+#Enable Dynamic Mapping of Regions
+PLAT_XLAT_TABLES_DYNAMIC := 1
+$(eval $(call add_define,PLAT_XLAT_TABLES_DYNAMIC))
+
 # Pass LAN966x_MAX_CPUS_PER_CLUSTER to the build system.
 $(eval $(call add_define,LAN966x_MAX_CPUS_PER_CLUSTER))
 

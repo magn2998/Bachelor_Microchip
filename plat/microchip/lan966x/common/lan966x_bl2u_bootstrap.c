@@ -28,8 +28,6 @@
 // Include functionality to disable Cache
 #include <lib/xlat_tables/xlat_tables_v2.h>
 
-
-
 #define MAX_OTP_DATA	1024
 
 #define PAGE_ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
@@ -70,6 +68,29 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
 	uint64_t memorySize = LAN966X_DDR_SIZE;
+
+
+	int a = 12;
+	int b =4;
+    //        b into a aka. a = b
+	// asm ("mov %1, %0;"
+	//     :"=r"(a) // related to %0 - Output - Address of variable A
+	//     :"r"(b) // related to %1 - Input - 
+ //    :);
+
+	//    Load word from address of b into register a with an offset of 0
+    asm ("ldr %0, [%1, #0];"
+	    :"=r"(a) // related to %0 - Output - Address of variable A
+	    :"r"(&b) // related to %1 - Input - 
+    :);
+
+
+	// if(a == 2) {
+	// 	bootstrap_TxAckData("A Equals 2", 11);
+	// 	return;
+	// }
+	// bootstrap_TxAckData("A Doesnt Equal 2", 17);
+	// return;
 
 	// Populate Memory with data
 	cntr = start;
@@ -134,9 +155,11 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
 {
-	uint32_t attr = MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
-	int ret = xlat_change_mem_attributes(LAN966X_DDR_BASE, (LAN966X_DDR_SIZE), attr);
-	if(ret != 0) {
+	mmap_remove_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+	int res = mmap_add_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_BASE, LAN966X_DDR_SIZE, MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER); // LAN966X_MAP_DDR_MEM
+
+
+	if(res != 0) {
 		bootstrap_TxAckData("Unable to disable cache", 24);
 		return;
 	}
