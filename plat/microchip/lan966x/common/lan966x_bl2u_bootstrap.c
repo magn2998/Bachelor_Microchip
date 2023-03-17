@@ -39,21 +39,45 @@ static const uintptr_t fip_base_addr = LAN966X_DDR_BASE;
 static const uintptr_t fip_max_size = LAN966X_DDR_SIZE;
 static uint32_t data_rcv_length;
 
-// static void int_to_string(uint32_t num, char str[]) 
-// {
-//     uint32_t i = 0, rem, len = 0, n;
-//     n = num;
-//     while (n != 0) {
-//         len++;
-//         n /= 10;
-//     }
-//     for (i = 0; i < len; i++) {
-//         rem = num % 10;
-//         str[len - (i + 1)] = rem + '0';
-//         num = num / 10;
-//     }
-//     str[len] = '\0';
-// }
+static void int_to_hex_string(uint32_t num, char str[]) {
+    const char hex_digits[] = "0123456789abcdef";
+    uint32_t i = 0, len = 0, n;
+    n = num;
+    while (n != 0) {
+        len++;
+        n >>= 4;
+    }
+    for (i = 0; i < len; i++) {
+        uint32_t digit = num & 0xf;
+        str[len - (i + 1)] = hex_digits[digit];
+        num >>= 4;
+    }
+    str[len] = '\0';
+}
+
+static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggle = 1 => Enable and Toggle = 0 => Disable
+	int res; // Handles result values from the various function calls
+	// Remove The Dynamic Region in order to change it
+	res = mmap_remove_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+
+	if(res != 0) {
+		bootstrap_TxAckData("Unable to Remove DDR MMAP region", 33);
+		return;
+	}
+	// Define the attribute                   W. Cache    Wo. Cache
+	unsigned int attribute = ((toggle == 1) ? MT_MEMORY : MT_DEVICE) | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
+
+
+	res = mmap_add_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_BASE, LAN966X_DDR_SIZE, attribute); 
+	if(res != 0) {
+		bootstrap_TxAckData((toggle == 1) ? "Unable to enable cache " : "Unable to disable cache", 24);
+		return;
+	}
+	// Flush and clean cache - See: https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/psci-lib-integration-guide.html 
+	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+
+	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
+}
 
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
@@ -70,10 +94,10 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	uint64_t memorySize = LAN966X_DDR_SIZE;
 
 
-	uint32_t a = 0x00ffffff;
-	uint32_t b  = 0xa;
-	uint32_t* addrB = &b; 
-	uint32_t c = 0x0;
+	// uint32_t a = 0x00ffffff;
+	// uint32_t b  = 0xa;
+	// uint32_t* addrB = &b; 
+	// uint32_t c = 0x0;
     //        b into a aka. a = b
 	// asm ("mov %1, %0;"
 	//     :"=r"(a) // related to %0 - Output - Address of variable A
@@ -81,22 +105,23 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
  //    :);
 
 	//    Load word from address of b into register a with an offset of 0
-    asm volatile (
-    	"label1:"
-    	 "str %[vA], [%[OutputAddrB]], #4;"
-    	 "ldrb %[vC], [%[OutputAddrB]], #4;"
-    	 "B label1"
-	    : [vC] "+r" (c), [OutputAddrB] "+&r" (addrB)
-	    : [vA] "r" (a) 
-    	: );
+ //    asm volatile (
+ //    	"label1:"
+ //    	 // "ldrb %[vC], [%[OutputAddrB]], #4;"
+ //    	 "str %[vA], [%[OutputAddrB]], #4;"
+ //    	 "ldrb %[vC], [%[OutputAddrB]], #4;"
+ //    	 "B label1"
+	//     : [vC] "+r" (c), [OutputAddrB] "+&r" (addrB)
+	//     : [vA] "r" (a) 
+ //    	: "r0"); // Clobbered register for temp storage
 
 
-	if(c == 0xff) {
-		bootstrap_TxAckData("C Equals 0", 11);
-		return;
-	}
-	bootstrap_TxAckData("C Doesnt Equal 0", 17);
-	return;
+	// if(c == 0xff) {
+	// 	bootstrap_TxAckData("C Equals 0", 11);
+	// 	return;
+	// }
+	// bootstrap_TxAckData("C Doesnt Equal 0", 17);
+	// return;
 
 	// Populate Memory with data
 	cntr = start;
@@ -159,118 +184,57 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 }
 
 
-static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed)
-{
-	mmap_remove_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
-	int res = mmap_add_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_BASE, LAN966X_DDR_SIZE, MT_DEVICE | MT_RW | MT_SECURE | MT_EXECUTE_NEVER); // LAN966X_MAP_DDR_MEM
+static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
+	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
 
-
-	if(res != 0) {
-		bootstrap_TxAckData("Unable to disable cache", 24);
-		return;
-	}
-	// Flush cache - ensures no data is accidently pushed to memory while running the test
-	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
-	
-	bootstrap_TxAckData("Unable to disable kjscd", 24);
-	return;
-	
-	/* Pseudocode for walking ones algorithm
-		init pattern = 0x1; // Size of one word (32 bit)
-		for baseAddr until baseAddr+size as addr do:
-			memory[addr] = pattern;
-			addr += 4; // move up 4 bytes, aka. one word
-			if pattern is 0x80000000 (Most significant bit is 1), then set pattern = 0x1
-			else set pattern = pattern << 1 
-	
-		set pattern = 0x1;
-		for baseAddr until baseAddr+size as addr do:
-			read = memory[addr];
-			if read xor pattern != 0, stop and give error
-			addr += 4; // move up 4 bytes, aka. one word
-			if pattern is 0x80000000 (Most significant bit is 1), then set pattern = 0x1
-			else set pattern = pattern << 1 
-		stop and give success flag
-	*/
-
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
-		";"
+		"MOV r1, #1;"          // Initiate pattern
+		"MOV r2, #0x80000000;" // Max value for the pattern (A single bit set at pos 31) and max value for the address (DDR mem goes from 0x60000000 to 0x80000000)
+		"MOV r3, %[memAddr];"  // Save base address for later use
+		"LOOP1:" // Label for beginning first loop
+		"STR r1, [%[memAddr]], #4;"
+		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
+		"ITE NE;"           // Prepare If-Then statement
+		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
+		"MOVEQ r1, #1;"     // Else (they're equal) set pattern to 0x1
+		"CMP %[memAddr], r2;"
+		"IT NE;"
+		"BNE LOOP1;"
+		// Beginning Loop no. 2
+		"MOV r1, #1;"         // Reset Pattern
+		"MOV %[memAddr], r3;" // Return to base memory address
+		"LOOP2:"
+		"LDR r4, [%[memAddr]], #4;" // read from memory
+		"CMP r1, r4;"  // Compare pattern and read value
+		"IT NE;"       // Prepare branch
+		"BNE ENDTEST;" // Branch end-test if they're not equal
+		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
+		"ITE NE;"           // Prepare If-Then statement
+		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
+		"MOVEQ r1, #1;"     // Else (they're equal) set pattern to 0x1
+		"CMP %[memAddr], r2;"
+		"IT NE;"
+		"BNE LOOP2;"
 
-		)
-
-
-	uint8_t val = 1; // 00000001
-	
-	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
-	uint64_t nextProgressUpdate = 0;
-
-	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	uint64_t memorySize = LAN966X_DDR_SIZE;
-
-	// Populate Memory with data
-	for(uint64_t i = 0; i < memorySize; i++) {
-		*memoryBase = val;
-		memoryBase++;
-
-		val = (val == 0x80 ? 1 : val << 1); // If val = 10000000b (0x80) -> set val = 1 else bitshift value
-
-		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-			bootstrap_TxAck(); 
-			nextProgressUpdate = progressStep;
-		}
-	}
-
-
-	// Check memory is identical
-	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	val = 1;
-	for(uint64_t i = 0; i < memorySize; i++) {
-		if(*memoryBase != val) {
-			bootstrap_TxAckData("Test Failed", 12);
-			return;
-		}
-		if(reversed) { // If it runs reversed, store the revered value
-			(*memoryBase) = (~val);
-		}
-
-		memoryBase++;
-		val = (val == 0x80 ? 1 : val << 1); 
-
-		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-			bootstrap_TxAck();
-			nextProgressUpdate = progressStep;
-		}
-	}
-
-	// Check memory is identical to reverse, in case the reverse is checked
-	if(reversed == 1) {
-		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-		val = 1;
-		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
-			if((uint8_t)(*memoryBase ^ ~val) > 0) {
-				bootstrap_TxAckData("Test Failed", 12);
-				return;
-			}
-
-			memoryBase++;
-			val = (val == 0x80 ? 1 : val << 1); 
-
-			if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-				bootstrap_TxAck();
-				nextProgressUpdate = progressStep;
-			}
-		}
-	}
+		"MOV %[resultOutput], #0x1;" // Set result to success
+		"ENDTEST:"
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result)
+    : "r" (memoryAddr) 
+	: "r1", "r2", "r3", "r4"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register
 
 
-	// attr = MT_MEMORY | MT_RW | MT_SECURE;
-	// ret = xlat_change_mem_attributes(fip_base_addr, fip_max_size, attr);
-	// if(ret != 0) {
-	// 	bootstrap_TxAckData("Unable to enable cache", 23);
-	// }
+	if(result == 0x1) {
+		bootstrap_TxAckData("Assembly Walking Ones Test Success", 35);
+		return;
+	} 
 
-	// Test Succesfull if it hasn't returned by now
-	bootstrap_TxAckData("Test Success", 13);
+
+	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
+	int_to_hex_string(memoryAddr-0x4, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
+	char resultStr[57] = "Assembly Walking Ones Test Failed at Address: 0x"; // Size = 48 chars for text + 9 for address text
+	strlcat(resultStr, addressStr, 57);
+	bootstrap_TxAckData(resultStr, 57);
 }
 
 
@@ -768,6 +732,10 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_otp_read(&req, false);
 		else if (is_cmd(&req, BOOTSTRAP_OTP_READ_RAW))	// l - Read RAW OTP data
 			handle_otp_read(&req, true);
+		else if(is_cmd(&req, BOOTSTRAP_DISABLE_CACHE))  // J - disable cache
+			handle_toggle_cache(&req, 0);
+		else if(is_cmd(&req, BOOTSTRAP_ENABLE_CACHE))   // j - Enable Cache
+			handle_toggle_cache(&req, 1);
 		else if(is_cmd(&req, BOOTSTRAP_DDR_CONFIG_READOUT))
 			handle_read_ddr_configuration(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORY_INIT_CUSTOM)) // f - Setup DDR Configuration

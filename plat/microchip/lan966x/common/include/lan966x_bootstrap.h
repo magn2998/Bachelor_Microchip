@@ -51,6 +51,10 @@
 #define BOOTSTRAP_ACK          'a'
 // NACK
 #define BOOTSTRAP_NACK         'n'
+// Enable Cache 
+#define BOOTSTRAP_ENABLE_CACHE 'j'
+// Disable Cache
+#define BOOTSTRAP_DISABLE_CACHE 'J'
 // Memory Configuration Read Out
 #define BOOTSTRAP_DDR_CONFIG_READOUT   'h'
 // DDR Memory Initialization Custom Configuration

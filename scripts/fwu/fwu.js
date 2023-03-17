@@ -24,6 +24,9 @@ const CMD_BL2U_OTP_READ_RAW ='l';
 const CMD_BL2U_OTP_READ_EMU ='L';
 const CMD_BL2U_RESET ='e';
 
+const CMD_ENABLE_CACHE = 'j';
+const CMD_DISABLE_CACHE = 'J';
+
 const CMD_MEMORYCONFIG_READ = 'h';
 const CMD_MEMORYCONFIG_INIT_CUSTOM = 'f';
 
@@ -904,6 +907,7 @@ function startSerial()
 		try {
 			setStatus("Executing "+ TESTNAME);
 
+			let timeBefore = new Date();
 
 			for(let i = 0; i < REPS; i++) {
 				counter = 1;
@@ -926,6 +930,10 @@ function startSerial()
 				}
 				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data);
 			}
+
+			let timeAfter = new Date();
+
+			console.log("Execution took " + ((timeAfter.getTime() - timeBefore.getTime())/1000) + " seconds.");
 
 			
 		} catch(e) {
@@ -1326,5 +1334,24 @@ function startSerial()
 			}
 		})
 	}
+
+	document.getElementById("toggleCache").addEventListener('change', async(e) => {
+		let enableCache = e.target.checked;
+		let s = disableButtons("bl2u", true);
+
+		try {
+			setStatus(enableCache ? "Enabling Cache" : "Disabling Cache");
+
+			let cont = await completeRequest(port, fmtReq((enableCache ? CMD_ENABLE_CACHE : CMD_DISABLE_CACHE), 0));
+			// console.log(cont);
+			// cont = await readRequest();
+			setStatus(cont.data);
+
+			restoreButtons(s);
+		} catch(e) {
+			setStatus("Toggling Cache Encountered an Error: " + e);
+			restoreButtons(s);
+		} 
+	});
 	
 }
