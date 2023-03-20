@@ -122,11 +122,11 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
 
-		"CMP %[isRndReversed], #0x1;" // If it is reversed, write the inverse value, otherwise continue
-		"ITTT EQ;"
-		"MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
-		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
-		"STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+		// "CMP %[isRndReversed], #0x1;" // If it is reversed, write the inverse value, otherwise continue
+		// "ITTT EQ;"
+		// "MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		// "SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
+		// "STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
 		"BL RANDOM;" // Randomize r4 value
 		"CMP %[memAddr], r2;" // Check is max-address is reached
@@ -168,7 +168,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 
 		"ENDRNDTEST:"
 	: [memAddr] "+&r" (memoryAddr), [resultOutput] "+&r" (result)
-    : "r" (memoryAddr), [isRndReversed] "r" (reversed2), [rnd] "r" (randomizer), [x] "r" (startVal)
+    : "r" (memoryAddr), [rnd] "r" (randomizer), [x] "r" (startVal)
 	: "r1", "r2", "r3", "r4", "r5", "r6", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
 
 
