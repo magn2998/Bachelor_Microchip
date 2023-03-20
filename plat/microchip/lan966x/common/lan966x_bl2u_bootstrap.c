@@ -32,6 +32,8 @@
 
 #define PAGE_ALIGN(x, a)	(((x) + (a) - 1) & ~((a) - 1))
 
+extern void dma_end(void);
+
 extern const struct ddr_config lan966x_ddr_config;
 static const struct ddr_config *current_ddr_config = &lan966x_ddr_config;
 
@@ -79,19 +81,119 @@ static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggl
 	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
 }
 
-static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
+static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 {
 	// Numbers to generate seemingly random pattern
-	uint8_t modulo = 251;
-	uint8_t factor = 13;
-	uint8_t start = 17;
-	uint8_t cntr = 0;
-	
-	uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
-	uint64_t nextProgressUpdate = 0;
+	// uint8_t modulo = 251; // 
+	// uint8_t factor = 13;
+	// uint8_t start = 17;
+	// uint8_t cntr = 0;
 
-	uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	uint64_t memorySize = LAN966X_DDR_SIZE;
+	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t randomizer = 0xFFFFDA61;
+	uint32_t startVal   = 0xFFFF12; 
+
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		// Prepare randomization algorithm
+		"MOV r4, %[x];" // Lower 32 bits of x
+		"MOV r5, #0;"   // Upper 32 bits of x
+		// Prepare constants		
+		"MOV r2, #0;"          // Max value for the address - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r2, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
+		"MOV r3, %[memAddr];"  // Save base address for later use
+		// First loop - populate DDR memory
+		"RNDLOOP1:" // Label for beginning first loop
+		"STR r4, [%[memAddr]], #4;" // Store value
+		"BL RANDOM;" // Randomize r4 value
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE RNDLOOP1;"
+		// Reset Randomization Algorithm
+		"MOV r4, %[x];" // Lower 32 bits of x
+		"MOV r5, #0;"   // Upper 32 bits of x
+		"MOV %[memAddr], r3;" // Return to base memory address
+
+
+		// Second Loop - Check DDR memory
+		"RNDLOOP2:"
+		"LDR r1, [%[memAddr]], #4;" // read from memory
+		"CMP r1, r4;"  // Compare pattern and read value
+		"IT NE;"       // Prepare branch
+		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
+
+		"CMP %[isRndReversed], #0x1;" // If it is reversed, write the inverse value, otherwise continue
+		"ITTT EQ;"
+		"MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
+		"STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+
+		"BL RANDOM;" // Randomize r4 value
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE RNDLOOP2;"
+
+
+		// Check if reversed check should be done
+		// "CMP %[isRndReversed], #0x1;"
+		// "IT NE;"
+		// "BNE SKIPRNDLOOP3;" // Skip loop 3 if is shouldn't do reverse check
+
+		// Reset Randomization Algorithm Again
+		"MOV r4, %[x];" // Lower 32 bits of x
+		"MOV r5, #0;"   // Upper 32 bits of x
+		"MOV %[memAddr], r3;" // Return to base memory address
+		// Third Loop - Check reversed DDR memory
+		"RNDLOOP3:"
+		"LDR r1, [%[memAddr]], #4;" // read from memory
+		"MVN r1, r1;"               // Reverse value read from memory
+		"CMP r1, r4;"  // Compare pattern and inversed read value
+		"IT NE;"       // Prepare branch
+		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
+		"BL RANDOM;" // Randomize r4 value
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE RNDLOOP3;"
+
+		// Set result to success and end test
+		"SKIPRNDLOOP3:"
+		"MOV %[resultOutput], #0x1;" 
+		"B ENDRNDTEST;" // End test
+
+		"RANDOM:" // Enter "function" to determine random value based on a[rnd] and lower bits of x[r4] stores in [r6,r7]
+		"UMULL r6, r7, %[rnd], r4;" // Multiply a[32 bit] with lower bits of x[r4]
+		"ADDS r4, r6, r5;"       // Add lower bits of previous result with upper bits of x[r5]. Store as the new lower bits of x[r4] + S for setting (carry) flags
+		"ADC r5, r7, #0;"       // Adds any carry value to the upper bits of the new x value
+		"BX r14;"                // Return to LR address. Result is stored in r7 and r8, lower and upper 32 bits respectively
+
+		"ENDRNDTEST:"
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "+&r" (result)
+    : "r" (memoryAddr), [isRndReversed] "r" (reversed2), [rnd] "r" (randomizer), [x] "r" (startVal)
+	: "r1", "r2", "r3", "r4", "r5", "r6", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
+
+
+	if(result == 0x1) {
+		bootstrap_TxAckData("Random Pattern Test Succeded", 29);
+		return;
+	} 
+
+	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
+	int_to_hex_string(memoryAddr-0x4, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
+	char resultStr[50] = "Random Pattern Test Failed at Address: 0x"; // Size = 41 chars for text + 9 for address text
+	strlcat(resultStr, addressStr, 50);
+	bootstrap_TxAckData(resultStr, 50);
+
+	// char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
+	// int_to_hex_string(memoryAddr, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
+	// char resultStr[57] = "Bssembly Walking Ones Test Failed at Address: 0x"; // Size = 48 chars for text + 9 for address text
+	// strlcat(resultStr, addressStr, 57);
+	// bootstrap_TxAckData(resultStr, 57);
+
+	// uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
+	// uint64_t nextProgressUpdate = 0;
+
+	// uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	// uint64_t memorySize = LAN966X_DDR_SIZE;
 
 
 	// uint32_t a = 0x00ffffff;
@@ -124,63 +226,63 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	// return;
 
 	// Populate Memory with data
-	cntr = start;
-	for(uint64_t i = 0; i < memorySize; i++) {
-		*memoryBase = cntr;
-		cntr = cntr * factor % modulo;
-		memoryBase++;
+	// cntr = start;
+	// for(uint64_t i = 0; i < memorySize; i++) {
+	// 	*memoryBase = cntr;
+	// 	cntr = cntr * factor % modulo;
+	// 	memoryBase++;
 
-		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-			bootstrap_TxAck(); 
-			nextProgressUpdate = progressStep;
-		}
-	}
-
-
-	// Check memory is identical
-	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	cntr = start;
-	for(uint64_t i = 0; i < memorySize; i++) {
-		if(*memoryBase != cntr) {
-			bootstrap_TxAckData("Test Failed", 12);
-			return;
-		}
-		if(reversed) { // If it runs reversed, store the reversed value
-			(*memoryBase) = (~cntr);
-		}
-
-		cntr = cntr * factor % modulo;
-		memoryBase++;
-
-		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-			bootstrap_TxAck();
-			nextProgressUpdate = progressStep;
-		}
-	}
-
-	// Check memory is identical to reverse, in case the reverse is checked
-	if(reversed == 1) {
-		memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-		cntr = start;
-		for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
-			if((uint8_t)(*memoryBase ^ ~cntr) > 0) {
-				bootstrap_TxAckData("Test Failed", 12);
-				return;
-			}
-
-			cntr = cntr * factor % modulo;
-			memoryBase++;
-
-			if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-				bootstrap_TxAck();
-				nextProgressUpdate = progressStep;
-			}
-		}
-	}
+	// 	if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+	// 		bootstrap_TxAck(); 
+	// 		nextProgressUpdate = progressStep;
+	// 	}
+	// }
 
 
-	// test is succesfull if it hasn't returned by now
-	bootstrap_TxAckData("Test Success", 13);
+	// // Check memory is identical
+	// memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	// cntr = start;
+	// for(uint64_t i = 0; i < memorySize; i++) {
+	// 	if(*memoryBase != cntr) {
+	// 		bootstrap_TxAckData("Test Failed", 12);
+	// 		return;
+	// 	}
+	// 	if(reversed) { // If it runs reversed, store the reversed value
+	// 		(*memoryBase) = (~cntr);
+	// 	}
+
+	// 	cntr = cntr * factor % modulo;
+	// 	memoryBase++;
+
+	// 	if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+	// 		bootstrap_TxAck();
+	// 		nextProgressUpdate = progressStep;
+	// 	}
+	// }
+
+	// // Check memory is identical to reverse, in case the reverse is checked
+	// if(reversed == 1) {
+	// 	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
+	// 	cntr = start;
+	// 	for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
+	// 		if((uint8_t)(*memoryBase ^ ~cntr) > 0) {
+	// 			bootstrap_TxAckData("Test Failed", 12);
+	// 			return;
+	// 		}
+
+	// 		cntr = cntr * factor % modulo;
+	// 		memoryBase++;
+
+	// 		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
+	// 			bootstrap_TxAck();
+	// 			nextProgressUpdate = progressStep;
+	// 		}
+	// 	}
+	// }
+
+
+	// // test is succesfull if it hasn't returned by now
+	// bootstrap_TxAckData("Test Success", 13);
 }
 
 
@@ -190,15 +292,17 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
 		"MOV r1, #1;"          // Initiate pattern
-		"MOV r2, #0x80000000;" // Max value for the pattern (A single bit set at pos 31) and max value for the address (DDR mem goes from 0x60000000 to 0x80000000)
+		"MOV r2, #0;"          // Max value for the pattern - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r2, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
 		"MOV r3, %[memAddr];"  // Save base address for later use
 		"LOOP1:" // Label for beginning first loop
 		"STR r1, [%[memAddr]], #4;"
+		"DSB;"
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
 		"ITE NE;"           // Prepare If-Then statement
 		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
 		"MOVEQ r1, #1;"     // Else (they're equal) set pattern to 0x1
-		"CMP %[memAddr], r2;"
+		"CMP %[memAddr], r2;" // Check is max-address is reached
 		"IT NE;"
 		"BNE LOOP1;"
 		// Beginning Loop no. 2
@@ -209,18 +313,48 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"CMP r1, r4;"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
 		"BNE ENDTEST;" // Branch end-test if they're not equal
+
+		"CMP %[isReversed], 0x1;" // If it is reversed, write the inverse value, otherwise continue
+		"ITTT EQ;"
+		"MVNEQ r4, r1;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
+		"STREQ r4, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+
+		"DSB;"
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
 		"ITE NE;"           // Prepare If-Then statement
 		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
 		"MOVEQ r1, #1;"     // Else (they're equal) set pattern to 0x1
-		"CMP %[memAddr], r2;"
+		"CMP %[memAddr], r2;" // Check is max-address is reached
 		"IT NE;"
 		"BNE LOOP2;"
+		// Check if it should continue
+		"CMP %[isReversed], 0x1;"
+		"IT NE;"
+		"BNE SKIPLOOP3;" // Skip loop 3 if is shouldn't do reverse check
+		// Beginning Loop no. 3
+		"MOV r1, #1;"         // Reset Pattern
+		"MOV %[memAddr], r3;" // Return to base memory address
+		"LOOP3:"
+		"LDR r4, [%[memAddr]], #4;" // read from memory
+		"DSB;"
+		"MVN r4, r4;"  // Negate Value from memory
+		"CMP r1, r4;"  // Compare pattern and read value
+		"IT NE;"       // Prepare branch
+		"BNE ENDTEST;" // Branch end-test if they're not equal
+		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
+		"ITE NE;"           // Prepare If-Then statement
+		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
+		"MOVEQ r1, #1;"     // Else (they're equal) set pattern to 0x1
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE LOOP3;"
 
+		"SKIPLOOP3:"
 		"MOV %[resultOutput], #0x1;" // Set result to success
 		"ENDTEST:"
 	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result)
-    : "r" (memoryAddr) 
+    : "r" (memoryAddr), [isReversed] "r" (reversed) 
 	: "r1", "r2", "r3", "r4"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register
 
 
@@ -241,7 +375,7 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 static void handle_databusTest(bootstrap_req_t *req)
 {
 	// Define the size of the data bus in amount of bits
-	uint8_t size = 32; // 16 Bit wise address bus used
+	uint8_t size = 32; // 32 Bit wise address bus used
 	uint32_t* baseAddr = (uint32_t*)LAN966X_DDR_BASE; // Address to write to
 	uint64_t val = 0xbc; // Value to write - Ise uint64 to account for any sized data bus
 	for(uint8_t i = 0; i < size; i++) {
