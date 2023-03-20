@@ -81,17 +81,11 @@ static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggl
 	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
 }
 
-static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
+static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 {
-	// Numbers to generate seemingly random pattern
-	// uint8_t modulo = 251; // 
-	// uint8_t factor = 13;
-	// uint8_t start = 17;
-	// uint8_t cntr = 0;
-
-	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
 	uint32_t randomizer = 0xFFFFDA61;
-	uint32_t startVal   = 0xFFFF12; 
+	uint32_t startVal   = 0xFFFF00; 
 
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
@@ -122,11 +116,11 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
 
-		// "CMP %[isRndReversed], #0x1;" // If it is reversed, write the inverse value, otherwise continue
-		// "ITTT EQ;"
-		// "MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
-		// "SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
-		// "STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+		"CMP %[resultOutput], 0x1;" // If it is reversed, write the inverse value, otherwise continue
+		"ITTT EQ;"
+		"MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
+		"STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
 		"BL RANDOM;" // Randomize r4 value
 		"CMP %[memAddr], r2;" // Check is max-address is reached
@@ -135,9 +129,9 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 
 
 		// Check if reversed check should be done
-		// "CMP %[isRndReversed], #0x1;"
-		// "IT NE;"
-		// "BNE SKIPRNDLOOP3;" // Skip loop 3 if is shouldn't do reverse check
+		"CMP %[resultOutput], 0x1;"
+		"IT NE;"
+		"BNE SKIPRNDLOOP3;" // Skip loop 3 if is shouldn't do reverse check
 
 		// Reset Randomization Algorithm Again
 		"MOV r4, %[x];" // Lower 32 bits of x
@@ -157,7 +151,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 
 		// Set result to success and end test
 		"SKIPRNDLOOP3:"
-		"MOV %[resultOutput], #0x1;" 
+		"MOV %[resultOutput], #2;" 
 		"B ENDRNDTEST;" // End test
 
 		"RANDOM:" // Enter "function" to determine random value based on a[rnd] and lower bits of x[r4] stores in [r6,r7]
@@ -172,7 +166,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 	: "r1", "r2", "r3", "r4", "r5", "r6", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
 
 
-	if(result == 0x1) {
+	if(result == 0x2) {
 		bootstrap_TxAckData("Random Pattern Test Succeded", 29);
 		return;
 	} 
@@ -182,107 +176,6 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed2)
 	char resultStr[50] = "Random Pattern Test Failed at Address: 0x"; // Size = 41 chars for text + 9 for address text
 	strlcat(resultStr, addressStr, 50);
 	bootstrap_TxAckData(resultStr, 50);
-
-	// char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
-	// int_to_hex_string(memoryAddr, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
-	// char resultStr[57] = "Bssembly Walking Ones Test Failed at Address: 0x"; // Size = 48 chars for text + 9 for address text
-	// strlcat(resultStr, addressStr, 57);
-	// bootstrap_TxAckData(resultStr, 57);
-
-	// uint64_t progressStep = LAN966X_DDR_SIZE / (reversed ? 33 : 50);
-	// uint64_t nextProgressUpdate = 0;
-
-	// uint8_t* memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	// uint64_t memorySize = LAN966X_DDR_SIZE;
-
-
-	// uint32_t a = 0x00ffffff;
-	// uint32_t b  = 0xa;
-	// uint32_t* addrB = &b; 
-	// uint32_t c = 0x0;
-    //        b into a aka. a = b
-	// asm ("mov %1, %0;"
-	//     :"=r"(a) // related to %0 - Output - Address of variable A
-	//     :"r"(b) // related to %1 - Input - 
- //    :);
-
-	//    Load word from address of b into register a with an offset of 0
- //    asm volatile (
- //    	"label1:"
- //    	 // "ldrb %[vC], [%[OutputAddrB]], #4;"
- //    	 "str %[vA], [%[OutputAddrB]], #4;"
- //    	 "ldrb %[vC], [%[OutputAddrB]], #4;"
- //    	 "B label1"
-	//     : [vC] "+r" (c), [OutputAddrB] "+&r" (addrB)
-	//     : [vA] "r" (a) 
- //    	: "r0"); // Clobbered register for temp storage
-
-
-	// if(c == 0xff) {
-	// 	bootstrap_TxAckData("C Equals 0", 11);
-	// 	return;
-	// }
-	// bootstrap_TxAckData("C Doesnt Equal 0", 17);
-	// return;
-
-	// Populate Memory with data
-	// cntr = start;
-	// for(uint64_t i = 0; i < memorySize; i++) {
-	// 	*memoryBase = cntr;
-	// 	cntr = cntr * factor % modulo;
-	// 	memoryBase++;
-
-	// 	if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-	// 		bootstrap_TxAck(); 
-	// 		nextProgressUpdate = progressStep;
-	// 	}
-	// }
-
-
-	// // Check memory is identical
-	// memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	// cntr = start;
-	// for(uint64_t i = 0; i < memorySize; i++) {
-	// 	if(*memoryBase != cntr) {
-	// 		bootstrap_TxAckData("Test Failed", 12);
-	// 		return;
-	// 	}
-	// 	if(reversed) { // If it runs reversed, store the reversed value
-	// 		(*memoryBase) = (~cntr);
-	// 	}
-
-	// 	cntr = cntr * factor % modulo;
-	// 	memoryBase++;
-
-	// 	if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-	// 		bootstrap_TxAck();
-	// 		nextProgressUpdate = progressStep;
-	// 	}
-	// }
-
-	// // Check memory is identical to reverse, in case the reverse is checked
-	// if(reversed == 1) {
-	// 	memoryBase = (uint8_t*)LAN966X_DDR_BASE;
-	// 	cntr = start;
-	// 	for(uint64_t i = 0; (i < memorySize); i++) { // If it should also check reversed
-	// 		if((uint8_t)(*memoryBase ^ ~cntr) > 0) {
-	// 			bootstrap_TxAckData("Test Failed", 12);
-	// 			return;
-	// 		}
-
-	// 		cntr = cntr * factor % modulo;
-	// 		memoryBase++;
-
-	// 		if((nextProgressUpdate--) <= 0) { // If it is time to update - update it
-	// 			bootstrap_TxAck();
-	// 			nextProgressUpdate = progressStep;
-	// 		}
-	// 	}
-	// }
-
-
-	// // test is succesfull if it hasn't returned by now
-	// bootstrap_TxAckData("Test Success", 13);
 }
 
 
