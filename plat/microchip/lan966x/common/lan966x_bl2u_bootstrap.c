@@ -111,43 +111,43 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 		"IT NE;"
 		"BNE WRITEBURSTLOOP1;"
 
-	: [_expected] "+r" (expected)
+	: [_expected] "+&r" (expected)
     : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress)
 	: "r1");
 
 	// flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x110000);
 
-	// asm volatile (
-	// 	"MOV r1, %[_expected];"
-	// 	"MOVW r2, #10;"
-	// 	// "MOVT r2, #0x6011;"
+	asm volatile (
+		"MOV r1, %[_expected];"
+		"MOVW r2, #10;"
+		// "MOVT r2, #0x6011;"
 
-	// 	// "MOV r1, #0;"
-	// 	"WRITEBURSTLOOP2:"
-	// 	// "ADD r1, r1, #1;"
-	// 	// "CMP r1, #100;"
-	// 	// "IT EQ;"
-	// 	// "BEQ ENDBURSTTEST;"
-	// 	// "B ENDBURSTTEST;"
+		// "MOV r1, #0;"
+		"WRITEBURSTLOOP2:"
+		// "ADD r1, r1, #1;"
+		// "CMP r1, #100;"
+		// "IT EQ;"
+		// "BEQ ENDBURSTTEST;"
+		// "B ENDBURSTTEST;"
 
-	// 	"LDRB %[_actual], [%[memAddr]];"
-	// 	"CMP %[_actual], r1;"
-	// 	"IT NE;"
-	// 	"BNE ENDBURSTTEST;"
-	// 	"MVN r1, r1;"
-	// 	"ADD %[memAddr], %[memAddr], #1;" 
-	// 	"CMP %[memAddr], r2;"
-	// 	"IT NE;"
-	// 	"BNE WRITEBURSTLOOP2;"
+		"LDRB %[_actual], [%[memAddr]];"
+		"CMP %[_actual], r1;"
+		"IT NE;"
+		"BNE ENDBURSTTEST;"
+		"MVN r1, r1;"
+		"ADD %[memAddr], %[memAddr], #1;" 
+		"CMP %[memAddr], r2;"
+		"IT NE;"
+		"BNE WRITEBURSTLOOP2;"
 
-	// 	"MOV %[resultOutput], #1;"
-	// 	"ENDBURSTTEST:"
-	// 	// "MOV %[_expected], r1;"
+		"MOV %[resultOutput], #1;"
+		"ENDBURSTTEST:"
+		// "MOV %[_expected], r1;"
 
 
-	// : [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "=r" (expected), [_actual] "+r" (actual)
- //    : "r" (memoryAddr), [maxAddr] "r" (maxAddress)
-	// : "r1", "r2"); 
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "=r" (expected), [_actual] "+r" (actual)
+    : "r" (memoryAddr), [maxAddr] "r" (maxAddress)
+	: "r1", "r2"); 
 
 	if(result == 1) {
 		bootstrap_TxAckData("Write Burst Test Succeded", 26);
