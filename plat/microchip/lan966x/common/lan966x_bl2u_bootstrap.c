@@ -103,51 +103,41 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 	uint32_t maxAddress  = memoryAddr + 0x110000;
 	asm volatile (
 		"MOV r1, %[memAddr];" // Copy memory address
+		"MOV r2, %[_expected];"
 		"WRITEBURSTLOOP1:"
-		"STRB %[_expected], [r1];"
-		"MVN %[_expected], %[_expected];" // Reverse Pattern
+		"STRB r2, [r1];"
+		"MVN r2, r2;" // Reverse Pattern
 		"ADD r1, r1, #1;" 
 		"CMP r1, %[maxAddr];"
 		"IT NE;"
 		"BNE WRITEBURSTLOOP1;"
 
-	: [_expected] "+&r" (expected)
-    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress)
-	: "r1");
+	: 
+    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress), [_expected] "r" (expected)
+	: "r1", "r2");
 
-	// flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x110000);
+	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x110000);
 
 	asm volatile (
-		"MOV r1, %[_expected];"
-		"MOVW r2, #10;"
-		// "MOVT r2, #0x6011;"
-
-		// "MOV r1, #0;"
 		"WRITEBURSTLOOP2:"
-		// "ADD r1, r1, #1;"
-		// "CMP r1, #100;"
-		// "IT EQ;"
-		// "BEQ ENDBURSTTEST;"
-		// "B ENDBURSTTEST;"
-
 		"LDRB %[_actual], [%[memAddr]];"
-		"CMP %[_actual], r1;"
+		"AND %[_actual], %[_actual], #0xFF;"
+		"CMP %[_actual], %[_expected];"
 		"IT NE;"
 		"BNE ENDBURSTTEST;"
-		"MVN r1, r1;"
+		"MVN %[_expected], %[_expected];"
+		"AND %[_expected], %[_expected], #0xFF;"
 		"ADD %[memAddr], %[memAddr], #1;" 
-		"CMP %[memAddr], r2;"
+		"CMP %[memAddr], %[maxAddr];"
 		"IT NE;"
 		"BNE WRITEBURSTLOOP2;"
 
 		"MOV %[resultOutput], #1;"
 		"ENDBURSTTEST:"
-		// "MOV %[_expected], r1;"
 
-
-	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "=r" (expected), [_actual] "+r" (actual)
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "+&r" (expected), [_actual] "+r" (actual)
     : "r" (memoryAddr), [maxAddr] "r" (maxAddress)
-	: "r1", "r2"); 
+	: ); 
 
 	if(result == 1) {
 		bootstrap_TxAckData("Write Burst Test Succeded", 26);
