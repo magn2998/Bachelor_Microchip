@@ -88,6 +88,91 @@ static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggl
 	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
 }
 
+static void handle_memoryTest_burst(bootstrap_req_t *req) {
+	// Cache size is L1 data cache and L2 cache. L1 has max size of 64kb and L2 has max size of 1MB which is a total of 1114112 bytes (same amount of addresses)
+	// Strategy:
+	// Write to at least 1114112 (0x110000) DIFFERENT addresses - Alternate between 0xAA and 0x55
+	// Perform a cache flush (Clean and invalidate cache)
+	// Read from each address - check that the value is correct
+
+	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t expected = 0xAA;
+	uint32_t actual   = 0x00;
+
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	uint32_t maxAddress  = memoryAddr + 0x110000;
+	asm volatile (
+		"MOV r1, %[memAddr];" // Copy memory address
+		"WRITEBURSTLOOP1:"
+		"STRB %[_expected], [r1];"
+		"MVN %[_expected], %[_expected];" // Reverse Pattern
+		"ADD r1, r1, #1;" 
+		"CMP r1, %[maxAddr];"
+		"IT NE;"
+		"BNE WRITEBURSTLOOP1;"
+
+	: [_expected] "+r" (expected)
+    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress)
+	: "r1");
+
+	// flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x110000);
+
+	// asm volatile (
+	// 	"MOV r1, %[_expected];"
+	// 	"MOVW r2, #10;"
+	// 	// "MOVT r2, #0x6011;"
+
+	// 	// "MOV r1, #0;"
+	// 	"WRITEBURSTLOOP2:"
+	// 	// "ADD r1, r1, #1;"
+	// 	// "CMP r1, #100;"
+	// 	// "IT EQ;"
+	// 	// "BEQ ENDBURSTTEST;"
+	// 	// "B ENDBURSTTEST;"
+
+	// 	"LDRB %[_actual], [%[memAddr]];"
+	// 	"CMP %[_actual], r1;"
+	// 	"IT NE;"
+	// 	"BNE ENDBURSTTEST;"
+	// 	"MVN r1, r1;"
+	// 	"ADD %[memAddr], %[memAddr], #1;" 
+	// 	"CMP %[memAddr], r2;"
+	// 	"IT NE;"
+	// 	"BNE WRITEBURSTLOOP2;"
+
+	// 	"MOV %[resultOutput], #1;"
+	// 	"ENDBURSTTEST:"
+	// 	// "MOV %[_expected], r1;"
+
+
+	// : [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "=r" (expected), [_actual] "+r" (actual)
+ //    : "r" (memoryAddr), [maxAddr] "r" (maxAddress)
+	// : "r1", "r2"); 
+
+	if(result == 1) {
+		bootstrap_TxAckData("Write Burst Test Succeded", 26);
+		return;
+	} 
+
+	char addressStr[9]; 
+	char expectedStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(memoryAddr, addressStr, 8);
+	int_to_hex_string(expected, expectedStr, 2); 
+	int_to_hex_string(actual, actualStr, 2);
+
+	char resultStr[85] = "Write Burst Test Failed. Read from address 0x"; // Size = 85 . chars for text[72] + 8 for address + 2*2 for values + 1 null character
+	strlcat(resultStr, addressStr, 85);
+	strlcat(resultStr, " and expected 0x", 85);	
+	strlcat(resultStr, expectedStr, 85);
+	strlcat(resultStr, " but got 0x", 85);	
+	strlcat(resultStr, actualStr, 85);
+
+
+	bootstrap_TxAckData(resultStr, 85);
+}
+
+
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
 	uint32_t randomizer = 0xFFFFDA61;
@@ -857,7 +942,7 @@ void lan966x_bl2u_bootstrap_monitor(void)
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND)) // x - Random Pattern Test
 			handle_memoryTest_rnd(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV)) // X - Random Pattern Test + Reverse
-			handle_memoryTest_rnd(&req, 1);
+			handle_memoryTest_burst(&req); // handle_memoryTest_rnd(&req, 1);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES)) // y - Walking Ones Test
 			handle_memoryTest_ones(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV)) // Y - Walking Ones Test + Reverse
