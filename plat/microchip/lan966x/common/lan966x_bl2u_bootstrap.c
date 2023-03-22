@@ -41,21 +41,28 @@ static const uintptr_t fip_base_addr = LAN966X_DDR_BASE;
 static const uintptr_t fip_max_size = LAN966X_DDR_SIZE;
 static uint32_t data_rcv_length;
 
-static void int_to_hex_string(uint32_t num, char str[]) {
-    const char hex_digits[] = "0123456789abcdef";
+static void int_to_hex_string(uint32_t num, char str[], int size) {
+    const char hex_digits[] = "0123456789ABCDEF";
     uint32_t i = 0, len = 0, n;
     n = num;
     while (n != 0) {
         len++;
         n >>= 4;
     }
-    for (i = 0; i < len; i++) {
+    // Calculate the number of leading zeros required to pad the hex value to [size] characters
+    uint32_t leading_zeros = size - len;
+    // Insert the leading zeros before the hex value
+    for (i = 0; i < leading_zeros; i++) {
+        str[i] = '0';
+    }
+    for (i = leading_zeros; i < size; i++) {
         uint32_t digit = num & 0xf;
-        str[len - (i + 1)] = hex_digits[digit];
+        str[size - (i + 1) + leading_zeros] = hex_digits[digit];
         num >>= 4;
     }
-    str[len] = '\0';
+    str[size] = '\0';
 }
+
 
 static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggle = 1 => Enable and Toggle = 0 => Disable
 	int res; // Handles result values from the various function calls
@@ -81,8 +88,7 @@ static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggl
 	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
 }
 
-static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
-{
+static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
 	uint32_t randomizer = 0xFFFFDA61;
 	uint32_t startVal   = 0xFFFF00; 
@@ -172,7 +178,7 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed)
 	} 
 
 	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
-	int_to_hex_string(memoryAddr-0x4, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
+	int_to_hex_string(memoryAddr-0x4, addressStr, 8); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
 	char resultStr[50] = "Random Pattern Test Failed at Address: 0x"; // Size = 41 chars for text + 9 for address text
 	strlcat(resultStr, addressStr, 50);
 	bootstrap_TxAckData(resultStr, 50);
@@ -190,7 +196,6 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV r3, %[memAddr];"  // Save base address for later use
 		"LOOP1:" // Label for beginning first loop
 		"STR r1, [%[memAddr]], #4;"
-		"DSB;"
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
 		"ITE NE;"           // Prepare If-Then statement
 		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
@@ -213,7 +218,6 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
 		"STREQ r4, [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
-		"DSB;"
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
 		"ITE NE;"           // Prepare If-Then statement
 		"LSLNE r1, r1, #1;" // If not equal, left shift bit ones
@@ -230,7 +234,6 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV %[memAddr], r3;" // Return to base memory address
 		"LOOP3:"
 		"LDR r4, [%[memAddr]], #4;" // read from memory
-		"DSB;"
 		"MVN r4, r4;"  // Negate Value from memory
 		"CMP r1, r4;"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
@@ -258,74 +261,154 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 
 
 	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
-	int_to_hex_string(memoryAddr-0x4, addressStr); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
+	int_to_hex_string(memoryAddr-0x4, addressStr, 8); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
 	char resultStr[57] = "Assembly Walking Ones Test Failed at Address: 0x"; // Size = 48 chars for text + 9 for address text
 	strlcat(resultStr, addressStr, 57);
 	bootstrap_TxAckData(resultStr, 57);
 }
 
 
-static void handle_databusTest(bootstrap_req_t *req)
-{
-	// Define the size of the data bus in amount of bits
-	uint8_t size = 32; // 32 Bit wise address bus used
-	uint32_t* baseAddr = (uint32_t*)LAN966X_DDR_BASE; // Address to write to
-	uint64_t val = 0xbc; // Value to write - Ise uint64 to account for any sized data bus
-	for(uint8_t i = 0; i < size; i++) {
-		*baseAddr = val;
+static void handle_databusTest(bootstrap_req_t *req) {
+	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t expected = 0;
+	uint32_t actual   = 0;
 
-		if((*baseAddr) != val) {
-			bootstrap_TxAckData("Data Bus Test Failed", 21);
-			return;
-		}
-	}
-	bootstrap_TxAckData("Data Bus Test Success", 22);
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		"MOV %[_expected], #1;" // Initiate Pattern
+		"MOVW r2, #0;"          // Max value for the pattern - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r2, #0x8000;"    // Write 16 last bits - set bit 31
+
+		"DATABUSLOOP1:" // Begin Test
+		"STR %[_expected], [%[memAddr]];" // Store value at a chosen address in the DDR chip
+		"DSB;"                  // Ensure value has been stored
+		"LDR %[_actual], [%[memAddr]];" // Load value 
+		"CMP %[_expected], %[_actual];"           // Compare read with written
+		"IT NE;"
+		"BNE ENDDATABUSTEST;"   // Stop test if mismatch
+		"CMP %[_expected], r2;"          // Check is end is reached (Bit 31 is set)
+		"ITT EQ;"
+		"MOVEQ %[resultOutput], #1;" // Set Success flag
+		"BEQ ENDDATABUSTEST;"        // End test
+		"LSL %[_expected], %[_expected], #1;"            // Left shift pattern
+		"B DATABUSLOOP1;"            // Continue loop
+		"ENDDATABUSTEST:"
+
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "+r" (expected), [_actual] "+r" (actual)
+    : "r" (memoryAddr) 
+	: "r2"); // Clobbered register for temp storage: MaxValue
+
+
+	if(result == 1) {
+		bootstrap_TxAckData("Data Bus Test Success", 22);
+		return;
+	} 
+
+	char expectedStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(expected, expectedStr, 8); 
+	int_to_hex_string(actual, actualStr, 8);
+
+	char resultStr[61] = "Data Bus Test Failed. Expected 0x"; // Size = 33 chars for text + 2*8 for values + 11 for middle text + 1 null character
+
+	strlcat(resultStr, expectedStr, 61);
+	strlcat(resultStr, " but got 0x", 61);
+	strlcat(resultStr, actualStr, 61);
+
+	bootstrap_TxAckData(resultStr, 61);
 }  
 
 
-static void handle_addrBusTest(bootstrap_req_t *req)
-{
-	uint8_t pattern    = 0xdb;
-	uintptr_t addrMask = 0x1;
-	uintptr_t baseAddr = LAN966X_DDR_BASE;
-	uint8_t* addr; // Actual address to write to
+static void handle_addrBusTest(bootstrap_req_t *req) {
+	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t expected  = 0xAA;
+	uint32_t actual    = 0x00;
 
-	// Write to all addresses
-	for(int i = 0; i < 31; i++) {
-		addr = (uint8_t*)(baseAddr | addrMask); // Update Address 
-		*addr = pattern; // Write Pattern
-		addrMask = addrMask << 0x1; // Update Mask for next iteration
-	}
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	uint32_t secondMemAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		"MOVW r1, #0;"          // Max value for the pattern - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r1, #0xE000;"    // Write 16 last bits - set bit 31
+		"MOV r2, #1;"         // First Address mask is 1
+		"MOV r4, %[memAddr];"// Store base address 
+		"MOV r5, #0x55;"    // Inverse Pattern
 
-	// Check they're all correct
-	addrMask = 0x1; // Reset Address Mask
-	for(int i = 0; i < 30; i++) {
-		addr = (uint8_t*)(baseAddr | addrMask); // Update Address for next iteration
+		"ADDRBUSLOOP1:" // Begin Test - populate all addresses with the pattern (expected)
+		"STRB %[_expected], [%[memAddr]];"
+		"ORR %[memAddr], r4, r2;"
+		"CMP %[memAddr], r1;"
+		"ITT NE;"
+		"LSLNE r2, r2, #1;" 
+		"BNE ADDRBUSLOOP1;"
+		"DSB;"
+
+		//Reset Address & Address Mask
+		"MOV r2, #1;"
+		"MOV %[memAddr], r4;"
+
+		"ADDRBUSLOOP2:"
+		"STRB r5, [%[memAddr]];" // Store reversed Pattern
+
+		"MOV %[secMemAddr], r4;" // Prepare Second Address 
+		"MOV r3, #1;" // Prepare Second Address Mask
+		"INNERADDRLOOP:" // Inner loop to check all other addresses have not changed
+		"CMP %[secMemAddr], %[memAddr];"
+		"IT EQ;"
+		"BEQ SKIPADDRCHECK;" // Skip check if it is the address just written to
 		
-		if(*addr != pattern) {
-			bootstrap_TxAckData("Test Failed", 12); // Error
-			return;
-		}
+		"LDRB %[_actual], [%[secMemAddr]];"
+		"CMP %[_actual], %[_expected];"
+		"IT NE;"
+		"BNE ENDADDRTEST;"
 
-		*addr = ~pattern; // Write Anti-Pattern
+		"SKIPADDRCHECK:"
+		"ORR %[secMemAddr], r4, r3;" // Set SecAddr = baseAddr | SecAddrMask
+		"CMP %[secMemAddr], r1;"     // Check if max is reached
+		"ITT NE;"
+		"LSLNE r3, r3, #1;" 
+		"BNE INNERADDRLOOP;"
 
-		uintptr_t secAddrMask = 0x1; // Mask for checking other addresses
-		uint8_t* secAddr; // Address for checking 
-		for(int o = 0; o < 30; o++) {
-			secAddr = (uint8_t*)(baseAddr | secAddrMask); // Use second address Mask to iterate again
-			if((*secAddr != pattern && i!=o)) {
-				bootstrap_TxAckData("Test Failed", 12); // Error if pattern is not correct in other addresses or the current address is not inverted
-				return; 
-			}
-			secAddrMask = secAddrMask << 1;
-		}
-		
-		*addr = pattern; // Write Back original pattern
+		"STRB %[_expected], [%[memAddr]];" // Store original pattern at mem addr
 
-		addrMask = addrMask << 0x1; // Update Mask for next iteration
-	}
+		"ORR %[memAddr], r4, r2;" // Set SecAddr = baseAddr | SecAddrMask
+		"CMP %[memAddr], r1;"     // Check if max is reached
+		"ITT NE;"
+		"LSLNE r2, r2, #1;" 
+		"BNE ADDRBUSLOOP2;"
 
-	bootstrap_TxAckData("Test Success", 13);
+		"MOV %[resultOutput], #1;" // Set Success flag
+		"ENDADDRTEST:"
+
+	: [memAddr] "+&r" (memoryAddr), [secMemAddr] "+&r" (secondMemAddr), [resultOutput] "=r" (result), [_expected] "+r" (expected), [_actual] "+r" (actual)
+    : "r" (memoryAddr) 
+	: "r1", "r2", "r3", "r4" ,"r5"); // Clobbered register for temp storage: maxValue, addrMask, SecondAddr, secondAddressMask, baseAddr, inversePattern
+
+
+	if(result == 1) {
+		bootstrap_TxAckData("Address Bus Test Success", 25);
+		return;
+	} 
+
+	char firstAddress[9]; 
+	char secondAddress[9]; 
+	char expectedStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(memoryAddr, firstAddress, 8); 
+	int_to_hex_string(secondMemAddr, secondAddress, 8);
+	int_to_hex_string(expected, expectedStr, 2); 
+	int_to_hex_string(actual, actualStr, 2);
+
+	char resultStr[130] = "Address Bus Test Failed. Wrote to address 0x"; // Size = 130 . chars for text[109] + 2*8 for address + 2*2 for values + 1 null character
+
+	strlcat(resultStr, firstAddress, 130);
+	strlcat(resultStr, " which changed the value at address 0x", 130);	
+	strlcat(resultStr, secondAddress, 130);
+	strlcat(resultStr, ". It expected 0x", 130);	
+	strlcat(resultStr, expectedStr, 130);
+	strlcat(resultStr, " but got 0x", 130);
+	strlcat(resultStr, actualStr, 130);
+
+	bootstrap_TxAckData(resultStr, 130);
 }
 
 
