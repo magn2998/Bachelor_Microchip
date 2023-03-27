@@ -57,6 +57,8 @@
 #define BOOTSTRAP_DISABLE_CACHE 'J'
 // Memory Configuration Read Out
 #define BOOTSTRAP_DDR_CONFIG_READOUT   'h'
+// Memory Chip Burst Write Test 
+#define BOOTSTRAP_MEMORYTEST_BURST_WRITE 'H'
 // DDR Memory Initialization Custom Configuration
 #define BOOTSTRAP_MEMORY_INIT_CUSTOM 'f'
 // Memory Data Bus Test

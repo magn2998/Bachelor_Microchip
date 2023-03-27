@@ -64,29 +64,40 @@ static void int_to_hex_string(uint32_t num, char str[], int size) {
 }
 
 
-static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggle = 1 => Enable and Toggle = 0 => Disable
+static uint8_t toggle_cache(uint8_t enable) { // enable = 1, enable otherwise disable ache 
 	int res; // Handles result values from the various function calls
 	// Remove The Dynamic Region in order to change it
 	res = mmap_remove_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
 
 	if(res != 0) {
-		bootstrap_TxAckData("Unable to Remove DDR MMAP region", 33);
-		return;
+		return 0;
 	}
 	// Define the attribute                   W. Cache    Wo. Cache
-	unsigned int attribute = ((toggle == 1) ? MT_MEMORY : MT_DEVICE) | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
-
+	unsigned int attribute = ((enable == 1) ? MT_MEMORY : MT_DEVICE) | MT_RW | MT_SECURE | MT_EXECUTE_NEVER;
 
 	res = mmap_add_dynamic_region(LAN966X_DDR_BASE, LAN966X_DDR_BASE, LAN966X_DDR_SIZE, attribute); 
 	if(res != 0) {
-		bootstrap_TxAckData((toggle == 1) ? "Unable to enable cache " : "Unable to disable cache", 24);
+		return 0;
+	}
+	return 1;
+} 
+
+
+static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggle = 1 => Enable and Toggle = 0 => Disable
+
+	if(toggle_cache(toggle)) {
+		// Flush and clean cache - See: https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/psci-lib-integration-guide.html 
+		flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
+
+		bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
 		return;
 	}
-	// Flush and clean cache - See: https://trustedfirmware-a.readthedocs.io/en/latest/getting_started/psci-lib-integration-guide.html 
-	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, LAN966X_DDR_SIZE);
 
-	bootstrap_TxAckData((toggle == 1) ? "Successfully enabled cache " : "Successfully disabled cache", 28);
+	bootstrap_TxAckData((toggle == 1) ? "Unable to enable cache " : "Unable to disable cache", 24);
+	return;
 }
+
+
 
 static void handle_memoryTest_burst(bootstrap_req_t *req) {
 	// Cache size is L1 data cache and L2 cache. L1 has max size of 64kb and L2 has max size of 1MB which is a total of 1114112 bytes (same amount of addresses)
@@ -100,25 +111,30 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 	uint32_t actual   = 0x00;
 
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
-	uint32_t maxAddress  = memoryAddr + 0x110000;
+	uint32_t maxAddress  = memoryAddr + 0x8000;
+
+	for(int i = 0; i < 20; i++) {
+		asm volatile ( // Fill up cache
+			"DSB;"
+			"MOV r1, %[memAddr];" // Copy memory address
+			"MOV r2, %[_expected];"
+			"WRITEBURSTLOOP1:"
+			"STRB r2, [r1];"
+			"LDRB r2, [r1];" // Read-Allocate => Write into cache
+			"MVN r2, r2;" // Reverse Pattern
+			"ADD r1, r1, #1;" 
+			"CMP r1, %[maxAddr];"
+			"IT NE;"
+			"BNE WRITEBURSTLOOP1;"
+		: 
+	    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress), [_expected] "r" (expected)
+		: "r1", "r2");
+	}
+
+	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x8000); // Flush old cache data to memory
+
 	asm volatile (
-		"MOV r1, %[memAddr];" // Copy memory address
-		"MOV r2, %[_expected];"
-		"WRITEBURSTLOOP1:"
-		"STRB r2, [r1];"
-		"MVN r2, r2;" // Reverse Pattern
-		"ADD r1, r1, #1;" 
-		"CMP r1, %[maxAddr];"
-		"IT NE;"
-		"BNE WRITEBURSTLOOP1;"
-
-	: 
-    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress), [_expected] "r" (expected)
-	: "r1", "r2");
-
-	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x110000);
-
-	asm volatile (
+		"DSB;" // Wait for flush to finish
 		"WRITEBURSTLOOP2:"
 		"LDRB %[_actual], [%[memAddr]];"
 		"AND %[_actual], %[_actual], #0xFF;"
@@ -932,7 +948,9 @@ void lan966x_bl2u_bootstrap_monitor(void)
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND)) // x - Random Pattern Test
 			handle_memoryTest_rnd(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_RND_REV)) // X - Random Pattern Test + Reverse
-			handle_memoryTest_burst(&req); // handle_memoryTest_rnd(&req, 1);
+			handle_memoryTest_rnd(&req, 1);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_BURST_WRITE))
+			handle_memoryTest_burst(&req);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES)) // y - Walking Ones Test
 			handle_memoryTest_ones(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV)) // Y - Walking Ones Test + Reverse

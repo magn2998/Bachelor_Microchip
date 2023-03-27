@@ -30,6 +30,8 @@ const CMD_DISABLE_CACHE = 'J';
 const CMD_MEMORYCONFIG_READ = 'h';
 const CMD_MEMORYCONFIG_INIT_CUSTOM = 'f';
 
+const CMD_MEMORYTEST_BURSTWRITE = 'H';
+
 const CMD_MEMORYTEST_RND = 'x';
 const CMD_MEMORYTEST_RND_REV = 'X';
 const CMD_MEMORYTEST_ONES = 'y';
@@ -856,14 +858,14 @@ function startSerial()
 
 
 	const enableMemoryTestSection = ()=>{
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = false;
 		}
 	}
 
 	const disableMemoryTestSection = ()=> {
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = true;
 		}
@@ -897,6 +899,17 @@ function startSerial()
   		} else {
   			await execute_memoryTest(CMD_MEMORYTEST_ONES, "memory chip test w. walking ones pattern", chiponesreps);
   		}
+    });
+
+    let chipburstsreps = 1;
+    document.getElementById('memorytest_chip_burstwrite').addEventListener('click', async() => {
+    	if(document.getElementById("toggleCache").checked) {
+			await execute_memoryTest(CMD_MEMORYTEST_BURSTWRITE, "Memory chip burst write test", chipburstsreps);
+    	} else {
+    		alert("Burst write test cannot be run while cache is disabled.");
+    		setStatus("Unable to run burst write test. Enable cache in order to run this test.");
+    	}
+
     });
 
     async function execute_memoryTest(TESTID, TESTNAME, REPS) {
@@ -947,6 +960,7 @@ function startSerial()
 	document.getElementById("memorytest_addrBus_reps").addEventListener("focusout", (e) => (addrbusReps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_rnd_reps").addEventListener("focusout", (e) => (chiprndreps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_ones_reps").addEventListener("focusout", (e) => (chiponesreps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_burst_reps").addEventListener("focusout", (e) => (chipburstsreps = formatRepetitionInputField(e)));
 
 	function formatRepetitionInputField(event) {
 		let parsedValue = parseInt(event.target.value);
@@ -984,27 +998,27 @@ function startSerial()
 	}
 
     document.getElementById('bl1_download').addEventListener('click', async () => {
-	let s = disableButtons("bl1", true);
-	try {
-	    setStatus("Downloading BL2U applet");
-	    await downloadApp(port, app, false);
-	    await delaySkipInput(port, 2000);
-	    let auth = await completeRequest(port, fmtReq(CMD_AUTH, 0));
-	    setStatus("BL2U booting");
-	    // Allow BL2U to boot
-	    await delaySkipInput(port, 2000);
-	    let fwu_vers = await completeRequest(port, fmtReq(CMD_VERS, 0));
-	    setStatus("BL2U operational: " + fwu_vers["data"]);
+		let s = disableButtons("bl1", true);
+		try {
+		    setStatus("Downloading BL2U applet");
+		    await downloadApp(port, app, false);
+		    await delaySkipInput(port, 2000);
+		    let auth = await completeRequest(port, fmtReq(CMD_AUTH, 0));
+		    setStatus("BL2U booting");
+		    // Allow BL2U to boot
+		    await delaySkipInput(port, 2000);
+		    let fwu_vers = await completeRequest(port, fmtReq(CMD_VERS, 0));
+		    setStatus("BL2U operational: " + fwu_vers["data"]);
 
-	    setStage("bl2u");
-	} catch(e) {
-	    setStatus(e);
-	} finally {
-	    restoreButtons(s);
+		    setStage("bl2u");
+		} catch(e) {
+		    setStatus(e);
+		} finally {
+		    restoreButtons(s);
 
-		// Disable buttons for memory testing - they're reenabled when the DDR memory is setup in function enableMemoryTestSection
-		disableMemoryTestSection();
-	}
+			// Disable buttons for memory testing - they're reenabled when the DDR memory is setup in function enableMemoryTestSection
+			disableMemoryTestSection();
+		}
     });
 
     document.getElementById('bl1_sjtag_challenge').addEventListener('click', async () => {
