@@ -528,13 +528,13 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	repeatStack.compareType = 0;
 
 	// Register order: m, p, n, r1-r5
-	uint32_t variables[8] = {0};
+	volatile uint32_t variables[8] = {0};
 		     variables[0] = LAN966X_DDR_BASE+LAN966X_DDR_SIZE;
 		     variables[2] = LAN966X_DDR_BASE;
-	uint8_t PC = 0; // Max 256 instructions
-	uint64_t protection = 0x1000000000; // Max repetitions - Alot
-	uint32_t loopBegin = 0; // Where the program should return to when the end is reached
-	uint32_t* memPointer; // Pointer used to undex DDR memory
+	volatile uint8_t PC = 0; // Max 256 instructions
+	volatile uint64_t protection = 0x1000000000; // Max repetitions - Alot
+	volatile uint32_t loopBegin = 0; // Where the program should return to when the end is reached
+	volatile uint32_t* memPointer; // Pointer used to undex DDR memory
 
 	while(protection > 0) {
 		
