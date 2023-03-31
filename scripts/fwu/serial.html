@@ -8,6 +8,7 @@
   <script src="sha256.js"></script>
   <script src="fwu.js"></script>
   <script src="fwu_app_lan966x_b0.js"></script>
+  <script src="ddr-test.js"></script>
     <style>
 	.wrapper {
 	    padding: 2px;
@@ -449,8 +450,13 @@
 			<td><input  class="memory_test_input" value="1" id="memorytest_burst_reps" placeholder="repititions"/></td>
 			</tr>
 		</table>
+    </div>
 
 
+    <div style="max-width: 300px;">
+    	<h2>Custom Pattern Testing</h2>
+    	<textarea id="memorytest_custom_pattern_input" placeholder="Write custom pattern code"></textarea>
+    	<button style="width:140px" type="button" id="memorytest_custom_pattern">Run Custom Pattern</button>
     </div>
 
   </div>

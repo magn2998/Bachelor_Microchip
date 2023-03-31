@@ -39,6 +39,8 @@ const CMD_MEMORYTEST_ONES_REV = 'Y';
 const CMD_MEMORYTEST_DATABUS = 'k';
 const CMD_MEMORYTEST_ADDRBUS = 'K';
 
+const CMD_MEMORYTEST_CUSTOM = 'g';
+
 var globalVar;
 
 // Interface Object - contains all keys neccessary for the ddr config
@@ -167,7 +169,7 @@ function validResponse(r)
     return m;
 }
 
-// Generates two request in order to send a total of 336 bytes
+// Generates a request to send over the DDR configuration as a HEX string
 function format_ddr_config_to_hexString(ddrConfig) {
 	let ddrConfig_array = DDRconfigToArray(ddrConfig);
 
@@ -185,6 +187,18 @@ function format_ddr_config_to_hexString(ddrConfig) {
 	// Adds the remaining 224 bytes aka. 56 4 byte integers
 	for(let i = 0; i < ddrConfig_array.data.length; i++) { 
 		req += BigEndianToSmallEndianHexString(ddrConfig_array.data[i].toString(16).padStart(8,"0"));
+	}
+
+    return req;
+}
+
+function format_customPattern_to_hexString(instructionArray) {
+	let req = CMD_DATA + ',' + fmtHex(1);
+	req += ',' + fmtHex(256); // The custom pattern program is max 256 bytes long (64 instructions)
+	req += CMD_DELIM_HEX;
+	// Add the instructions formatted correctly
+	for(let i = 0; i < instructionArray.length; i++) { 
+		req += BigEndianToSmallEndianHexString(instructionArray[i].toString(16).padStart(8,"0"));
 	}
 
     return req;
@@ -1367,5 +1381,37 @@ function startSerial()
 			restoreButtons(s);
 		} 
 	});
-	
+		
+	// Attach click event to Upload Custom Pattern Code button
+	document.getElementById("memorytest_custom_pattern").addEventListener('click', async ()=>{
+
+	    let s = disableButtons("bl2u", true);
+		
+		try {
+			setStatus("Testing with custom pattern");
+
+			let code = document.getElementById("memorytest_custom_pattern_input").value;
+		    console.log(code);
+		    let instructions = assemble_program(code);
+		    console.log(instructions);
+
+			let cont = await completeRequest(port, fmtReq(CMD_MEMORYTEST_CUSTOM, 0));
+			console.log(cont);
+
+			let req = format_customPattern_to_hexString(instructions); 
+			console.log(req);
+			cont = await completeRequest(port, req);
+
+			console.log(cont);
+			cont = await readRequest();
+			setStatus("Finished memory testing with custom pattern - Result: " + cont.data);
+
+			restoreButtons(s);
+			enableMemoryTestSection();
+			
+		} catch(e) {
+			setStatus("Memory testing with custom pattern encountered an error: " + e);
+			restoreButtons(s);
+		} 
+	});
 }

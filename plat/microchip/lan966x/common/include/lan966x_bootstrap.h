@@ -73,9 +73,46 @@
 #define BOOTSTRAP_MEMORYTEST_ONES   'y'
 // Memory Chip Test: Walking Ones Pattern + Reversed (Walking zeros)
 #define BOOTSTRAP_MEMORYTEST_ONES_REV   'Y'
-
+// Upload Custom Pattern
+#define BOOTSTRAP_CUSTOM_PATTERN   'g'
 
 #define BSTRAP_HEXFLD_LEN	8
+
+
+
+// Defines for the pattern interpreter
+#define BOOTSTRAP_INTERP_RESTART  0
+#define BOOTSTRAP_INTERP_REPEAT   1
+#define BOOTSTRAP_INTERP_END      2
+#define BOOTSTRAP_INTERP_STORE    3
+#define BOOTSTRAP_INTERP_LOAD     4
+#define BOOTSTRAP_INTERP_CMP      5
+#define BOOTSTRAP_INTERP_MOV      6
+#define BOOTSTRAP_INTERP_MOVI     7
+#define BOOTSTRAP_INTERP_MOVETOP  8
+#define BOOTSTRAP_INTERP_ADD      9
+#define BOOTSTRAP_INTERP_ADDI    10
+#define BOOTSTRAP_INTERP_SUB     11
+#define BOOTSTRAP_INTERP_SUBI    12
+#define BOOTSTRAP_INTERP_AND     13
+#define BOOTSTRAP_INTERP_ANDI    14
+#define BOOTSTRAP_INTERP_OR      15
+#define BOOTSTRAP_INTERP_ORI     16
+#define BOOTSTRAP_INTERP_XOR     17
+#define BOOTSTRAP_INTERP_XORI    18
+#define BOOTSTRAP_INTERP_LSL     19
+#define BOOTSTRAP_INTERP_LSLI    20
+#define BOOTSTRAP_INTERP_LSR     21
+#define BOOTSTRAP_INTERP_LSRI    22
+#define BOOTSTRAP_INTERP_MUL     23
+#define BOOTSTRAP_INTERP_MULI    24
+#define BOOTSTRAP_INTERP_NEGATE  25
+#define BOOTSTRAP_INTERP_LOOP    26
+#define BOOTSTRAP_INTERP_REPEATEQUALS 27
+#define BOOTSTRAP_INTERP_STOP 28
+
+
+
 
 typedef struct {
 	char cmd;                          /* C        */
@@ -138,3 +175,6 @@ static inline void bootstrap_TxNack(const char *str)
 }
 
 bool bootstrap_RxDataCrc(bootstrap_req_t *req, uint8_t *data);
+
+
+

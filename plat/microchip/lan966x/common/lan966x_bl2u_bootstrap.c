@@ -502,6 +502,181 @@ static void handle_addrBusTest(bootstrap_req_t *req) {
 	bootstrap_TxAckData(resultStr, 130);
 }
 
+static void handle_custom_pattern(bootstrap_req_t *req) {
+	uint32_t instructions[64] = {0}; // Max of 64 instruction - 256 bytes
+	int num_bytes = 0;
+
+	// Signal it is ready to receive data from client
+	bootstrap_TxAck();
+
+	// Read instructions from request into instructions
+	num_bytes = bootstrap_RxData((uint8_t*)instructions, 1, sizeof instructions); // Read the request - 256 bytes
+
+	if(num_bytes != (sizeof instructions)) {
+		bootstrap_TxAckData("Failed uploading config", 24);
+	} 
+
+	struct returnPointer {
+		uint8_t pointer;
+		uint8_t compareType; // Used to indicate if it is a compare repeat or a simple counter repeat
+		uint32_t counter[8];
+		uint32_t location[8];
+	}; // Stack of repeats
+
+	volatile struct returnPointer repeatStack;
+	repeatStack.pointer     = 0;
+	repeatStack.compareType = 0;
+
+	// Register order: m, p, n, r1-r5
+	uint32_t variables[8] = {0};
+		     variables[0] = LAN966X_DDR_BASE+LAN966X_DDR_SIZE;
+		     variables[2] = LAN966X_DDR_BASE;
+	uint8_t PC = 0; // Max 256 instructions
+	uint64_t protection = 0x1000000000; // Max repetitions - Alot
+	uint32_t loopBegin = 0; // Where the program should return to when the end is reached
+	uint32_t* memPointer; // Pointer used to undex DDR memory
+
+	while(protection > 0) {
+		
+		uint8_t  ope = (instructions[PC]      ) & 0x3F;   // 111111b
+		uint8_t  rd  = (instructions[PC] >> 6 ) & 0x7;    // 111b  
+		uint8_t  r1  = (instructions[PC] >> 9 ) & 0x7;    // 111b
+		uint8_t  r2  = (instructions[PC] >> 12) & 0x7;    // 111b
+		uint32_t imm = (instructions[PC] >> 15) & 0XFFFF; // 1111.1111.1111.1111b    
+		
+		PC++; // Update PC - not used until next repeat and might change in 
+
+		switch(ope) {
+			case BOOTSTRAP_INTERP_RESTART: // If the end of program is reached, repeat
+				PC = loopBegin;
+				break;
+			case BOOTSTRAP_INTERP_REPEAT:
+				repeatStack.pointer++;
+				repeatStack.compareType = (repeatStack.compareType & ~(1 << (repeatStack.pointer-1)));
+				repeatStack.counter[repeatStack.pointer-1] = imm-1;
+				repeatStack.location[repeatStack.pointer-1] = PC;
+				break;
+			case BOOTSTRAP_INTERP_REPEATEQUALS:
+				repeatStack.pointer++;
+				// Set binary indicator that is should compare registers
+				repeatStack.compareType = (repeatStack.compareType | (1 << (repeatStack.pointer-1)));
+				repeatStack.counter[repeatStack.pointer-1] = 0 | (rd << 0x3) | (r1);
+				repeatStack.location[repeatStack.pointer-1] = PC;
+				break;
+			case BOOTSTRAP_INTERP_END:
+				rd = (repeatStack.compareType & (1 << (repeatStack.pointer-1)));
+				r1 = repeatStack.counter[repeatStack.pointer-1] & 0x7;
+				r2 = repeatStack.counter[repeatStack.pointer-1] & 0x38;
+				if(rd == 0 && repeatStack.counter[repeatStack.pointer-1] <= 0) {
+					repeatStack.pointer--;
+				} else if(rd == 1 && variables[r1] == variables[r2]) {
+					repeatStack.pointer--;
+				} else {
+					PC = repeatStack.location[repeatStack.pointer-1];
+					repeatStack.counter[repeatStack.pointer-1]--;
+				}
+				break;
+			case BOOTSTRAP_INTERP_LOOP:
+				loopBegin = imm;
+				break;
+			case BOOTSTRAP_INTERP_STORE:
+				if(variables[rd] < LAN966X_DDR_BASE || variables[rd] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
+					// Catastrophic error
+					bootstrap_TxAckData("Catastrophic error", 19);
+					return;
+				}
+				memPointer  = (uint32_t*) variables[rd];
+				*memPointer = variables[r1];
+				break;
+			case BOOTSTRAP_INTERP_LOAD:
+				if(variables[r1] < LAN966X_DDR_BASE || variables[r1] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
+					// Catastrophic error
+					bootstrap_TxAckData("Catastrophic error", 19);
+					return;
+				}
+				memPointer   = (uint32_t*) variables[r1];
+				variables[r1] = *memPointer;
+				break;
+			case BOOTSTRAP_INTERP_CMP:
+				if(variables[rd] != variables[r1]) {
+					bootstrap_TxAckData("Mismatch!", 10);
+					return;
+				}
+
+				break;
+			case BOOTSTRAP_INTERP_MOV:
+			    variables[rd] = r1;
+				break;
+			case BOOTSTRAP_INTERP_MOVI:
+			    variables[rd] = imm;
+				break;
+			case BOOTSTRAP_INTERP_MOVETOP:
+			    variables[rd] = (imm << 16) & (variables[rd] & 0xFFFF);
+				break;
+			case BOOTSTRAP_INTERP_ADD:
+			    variables[rd] = variables[r1] + variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_ADDI:
+			    variables[rd] = variables[r1] + imm;
+				break;
+			case BOOTSTRAP_INTERP_SUB:
+				variables[rd] = variables[r1] - variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_SUBI:
+			    variables[rd] = variables[r1] - imm;
+				break;
+			case BOOTSTRAP_INTERP_AND:
+			    variables[rd] = variables[r1] & variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_ANDI:
+			    variables[rd] = variables[r1] & imm;
+				break;
+			case BOOTSTRAP_INTERP_OR:
+			    variables[rd] = variables[r1] | variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_ORI:
+			    variables[rd] = variables[r1] | imm;
+				break;
+			case BOOTSTRAP_INTERP_XOR:
+			    variables[rd] = variables[r1] ^ variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_XORI:
+			    variables[rd] = variables[r1] ^ imm;
+				break;
+			case BOOTSTRAP_INTERP_LSL:
+			    variables[rd] = variables[r1] << variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_LSLI:
+			    variables[rd] = variables[r1] << imm;
+				break;
+			case BOOTSTRAP_INTERP_LSR:
+			    variables[rd] = variables[r1] >> variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_LSRI:
+			    variables[rd] = variables[r1] >> imm;
+				break;
+			case BOOTSTRAP_INTERP_MUL:
+			    variables[rd] = variables[r1] * variables[r2];
+				break;
+			case BOOTSTRAP_INTERP_MULI:
+				variables[rd] = variables[r1] * imm;
+				break;
+			case BOOTSTRAP_INTERP_NEGATE:
+				variables[rd] = ~variables[r1];
+				break;
+			case BOOTSTRAP_INTERP_STOP:
+				protection = 1; // Stop exeuction by setting protection to 0 (It is reduced by one outside the switch)
+				break;
+			default:
+				return;
+		}
+		protection--;
+	}
+
+	PC = PC;
+	bootstrap_TxAckData("Done Running Custom Pattern", 28);
+}
+
 
 static void handle_read_ddr_configuration(bootstrap_req_t *req) {
 	bootstrap_TxAckData((void*)current_ddr_config, sizeof lan966x_ddr_config);
@@ -955,6 +1130,8 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_memoryTest_ones(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV)) // Y - Walking Ones Test + Reverse
 			handle_memoryTest_ones(&req, 1);
+		else if(is_cmd(&req, BOOTSTRAP_CUSTOM_PATTERN))
+			handle_custom_pattern(&req);
 		else
 			bootstrap_TxNack("Unknown command");
 	}
