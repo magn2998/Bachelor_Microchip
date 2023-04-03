@@ -73,6 +73,12 @@
 #define BOOTSTRAP_MEMORYTEST_ONES   'y'
 // Memory Chip Test: Walking Ones Pattern + Reversed (Walking zeros)
 #define BOOTSTRAP_MEMORYTEST_ONES_REV   'Y'
+// Memory Chip Test: Address Pattern (Write address into address)
+#define BOOTSTRAP_MEMORYTEST_ADDRESS   'p'
+// Memory Chip Test: Address Pattern + Reversed
+#define BOOTSTRAP_MEMORYTEST_ADDRESS_REV   'q'
+// Memory Chip Test: Hammer Test
+#define BOOTSTRAP_MEMORYTEST_HAMMER   'w'
 // Upload Custom Pattern
 #define BOOTSTRAP_CUSTOM_PATTERN   'g'
 

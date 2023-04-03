@@ -36,8 +36,11 @@ const CMD_MEMORYTEST_RND = 'x';
 const CMD_MEMORYTEST_RND_REV = 'X';
 const CMD_MEMORYTEST_ONES = 'y';
 const CMD_MEMORYTEST_ONES_REV = 'Y';
+const CMD_MEMORYTEST_ADDRESS = 'p';
+const CMD_MEMORYTEST_ADDRESS_REV = 'q';
 const CMD_MEMORYTEST_DATABUS = 'k';
 const CMD_MEMORYTEST_ADDRBUS = 'K';
+const CMD_MEMORYTEST_HAMMER = 'w';
 
 const CMD_MEMORYTEST_CUSTOM = 'g';
 
@@ -872,14 +875,14 @@ function startSerial()
 
 
 	const enableMemoryTestSection = ()=>{
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = false;
 		}
 	}
 
 	const disableMemoryTestSection = ()=> {
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = true;
 		}
@@ -915,6 +918,16 @@ function startSerial()
   		}
     });
 
+    let chipaddresssreps = 1;
+    document.getElementById('memorytest_chip_address').addEventListener('click', async() => {
+  		if(document.getElementById("memorytest_chip_address_reversed").checked) {
+  			await execute_memoryTest(CMD_MEMORYTEST_ADDRESS_REV, "memory chip test w. address & reversed pattern", chipaddresssreps);
+  		} else {
+  			await execute_memoryTest(CMD_MEMORYTEST_ADDRESS, "memory chip test w. address pattern", chipaddresssreps);
+  		}
+    });
+
+
     let chipburstsreps = 1;
     document.getElementById('memorytest_chip_burstwrite').addEventListener('click', async() => {
     	if(document.getElementById("toggleCache").checked) {
@@ -925,6 +938,19 @@ function startSerial()
     	}
 
     });
+
+    let chiphammerreps = 1;
+    document.getElementById('memorytest_chip_hammer').addEventListener('click', async() => {
+    	if(!document.getElementById("toggleCache").checked) {
+			await execute_memoryTest(CMD_MEMORYTEST_HAMMER, "Memory chip Hammer Test", chiphammerreps);
+    	} else {
+    		alert("Hammer testest cannot be run while cache is enabled.");
+    		setStatus("Unable to run the hammer test. Disable the cache in order to run this test.");
+    	}
+
+    });
+    
+
 
     async function execute_memoryTest(TESTID, TESTNAME, REPS) {
 		let s = disableButtons("bl2u", true);
@@ -974,7 +1000,9 @@ function startSerial()
 	document.getElementById("memorytest_addrBus_reps").addEventListener("focusout", (e) => (addrbusReps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_rnd_reps").addEventListener("focusout", (e) => (chiprndreps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_ones_reps").addEventListener("focusout", (e) => (chiponesreps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_address_reps").addEventListener("focusout", (e) => (chipaddresssreps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_burst_reps").addEventListener("focusout", (e) => (chipburstsreps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_hammer_reps").addEventListener("focusout", (e) => (chiphammerreps = formatRepetitionInputField(e)));
 
 	function formatRepetitionInputField(event) {
 		let parsedValue = parseInt(event.target.value);

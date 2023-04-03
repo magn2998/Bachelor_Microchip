@@ -53,8 +53,8 @@ types:
     6. cmd + rd + r1 + imm (e.g. 'addi')
 */
 
-function assemble_program(str) {
-    let prog = str.toLowerCase().replace(/:/g, '').split(/ *\n+ */g).filter((e)=>(e.indexOf('start') === -1 && e != '')).map((e)=>e.split(/[, ]+/g));
+function assemble_program(str) {        // Replace Comments and semicolons
+    let prog = str.toLowerCase().replace(/\/\/.*\n|:/g, '\n').split(/ *\n+ */g).filter((e)=>(e.indexOf('start') === -1 && e != '')).map((e)=>e.split(/[, ]+/g));
     let instructions = new Array(64).fill(0);
 
     if(prog.length > 64) {

@@ -22,6 +22,7 @@
 #include "lan966x_private.h"
 #include "lan966x_fw_bind.h"
 #include "lan966x_bootstrap.h"
+#include "ddr_platform.h"
 #include "lan966x_bl2u_bootstrap.h"
 #include "otp.h"
 
@@ -275,7 +276,6 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	bootstrap_TxAckData(resultStr, 50);
 }
 
-
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
 
@@ -358,11 +358,194 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 	bootstrap_TxAckData(resultStr, 57);
 }
 
+static void handle_memoryTest_addr(bootstrap_req_t *req, uint8_t reversed) {
+	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t expectedVal = 0;
+	uint32_t actualVal = 0;
+
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		"MOV r2, #0;"          // Max Address first 16 bits
+		"MOVT r2, #0x8000;"    // Write 16 last bits 
+		"MOV r3, %[memAddr];"  // Save base address for later use
+
+		"ADDRLOOP1:" // Label for beginning first loop
+		"MOV %[_expected], %[memAddr];"
+		"STR %[_expected], [%[memAddr]], #4;"
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE ADDRLOOP1;"
+		// Beginning Loop no. 2
+		"MOV %[memAddr], r3;" // Return to base memory address
+		"ADDRLOOP2:"
+		"MOV %[_expected], %[memAddr];" 
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"CMP %[_expected], %[_actual];"  // Compare address and read value
+		"IT NE;"       // Prepare branch
+		"BNE ADDRENDTEST;" // Branch end-test if they're not equal
+
+		"CMP %[isReversed], 0x1;" // If it is reversed, write the inverse value, otherwise continue
+		"ITTT EQ;"
+		"MVNEQ %[_expected], %[_expected];"     // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"SUBEQ %[memAddr], %[memAddr], #4;"     // Move address one down again
+		"STREQ %[_expected], [%[memAddr]], #4;" // Store negated value at address and increment address again
+
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE ADDRLOOP2;"
+		// Check if it should continue
+		"CMP %[isReversed], 0x1;"
+		"IT NE;"
+		"BNE ADDRSKIPLOOP3;" // Skip loop 3 if is shouldn't do reverse check
+		// Beginning Loop no. 3
+
+		"MOV %[memAddr], r3;" // Return to base memory address
+		"ADDRLOOP3:"
+		"MVN %[_expected], %[memAddr];" // Expected Negated Value of address
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"CMP %[_expected], %[_actual];"  // Compare pattern and read value
+		"IT NE;"       // Prepare branch
+		"BNE ADDRENDTEST;" // Branch end-test if they're not equal
+		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"IT NE;"
+		"BNE ADDRLOOP3;"
+
+		"ADDRSKIPLOOP3:"
+		"MOV %[resultOutput], #0x1;" // Set result to success
+		"ADDRENDTEST:"
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "+&r" (expectedVal), [_actual] "+r" (actualVal)
+    : "r" (memoryAddr), [isReversed] "r" (reversed) 
+	: "r1", "r2", "r3", "r4"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register
+
+
+	if(result == 0x1) {
+		bootstrap_TxAckData("Assembly Address Test Success", 30);
+		return;
+	} 
+
+	char addressStr[9]; 
+	char expectedStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(memoryAddr-0x4, addressStr, 8);
+	int_to_hex_string(expectedVal, expectedStr, 8); 
+	int_to_hex_string(actualVal, actualStr, 8);
+
+	char resultStr[92] = "Assembly Address Test Failed at Address: 0x"; // Size = 67 . chars for text[67] + 8*3 for address and values + 1 null character
+	strlcat(resultStr, addressStr, 92);
+	strlcat(resultStr, ". Expected 0x", 92);	
+	strlcat(resultStr, expectedStr, 92);
+	strlcat(resultStr, " but got 0x", 92);	
+	strlcat(resultStr, actualStr, 92);
+
+
+	bootstrap_TxAckData(resultStr, 92);
+}
+
+static void handle_memoryTest_Hammer(bootstrap_req_t *req) {
+	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t pattern  = 0xF5F5F5F5;
+	uint32_t actual   = 0;
+	uint32_t addrMask = 0; // mask for selecting address of different rows
+
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		"MOV r2, %[memAddr];" //Use r2 for indexing for this first loop
+		"MOVW r3, #0;"          // Max value for the pattern - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r3, #0x8000;"    // Write 16 last bits - set bit 31
+
+		"HAMMERPOPULATE:" // Populate every address with pattern
+		"STR %[_pattern], [r2], #4;"
+		"CMP r2, r3;" // Check is max-address is reached
+		"IT NE;"
+		"BNE HAMMERPOPULATE;"
+
+		"MOV %[_mask], #0;" // Set first Mask value to 0
+		"MOV r5, #100;"     // Outer loop is done 100 times.
+		"HAMMEROUTERLOOP:" // Begin Test
+		"LSL r2, %[_mask], #9;"   // Determine X
+		"ORR r2, r2, %[memAddr];" // Determine X
+		"ADD r3, %[_mask], #1;"   // Determine Y
+		"LSL r3, r3, #9;"         // Determine Y
+		"ORR r3, r3, %[memAddr];" // Determine Y
+		"MOVW r4, #0x4B40;"          // Max Iterations for inner loop: 10 million
+		"MOVT r4, #0x4C;"            // Write 16 last bits 
+		"HAMMERINNERLOOP:"
+		"LDR %[_actual], [r2];"
+		"LDR r6, [r3];"
+		"SUB r4, r4, #1;"
+		"DSB;"
+		"CMP r4, #0;"
+		"IT NE;"
+		"BNE HAMMERINNERLOOP;"
+		"SUB r5, r5, #1;"
+		"ADD %[_mask], %[_mask], #2;"
+		"CMP r5, #0;"
+		"IT NE;"
+		"BNE HAMMEROUTERLOOP;"
+
+
+
+		// Read all effected rows
+		"MOV %[_mask], #0;" // Set first Mask value to 0
+		"MOV r5, #100;"     // Outer loop is done 100 times.
+		"HAMMERCHECK:" // Check row values
+		"LSL r2, %[_mask], #9;"   // Determine X
+		"ORR r2, r2, %[memAddr];" // Determine X
+		"ADD r3, %[_mask], #1;"   // Determine Y
+		"LSL r3, r3, #9;"         // Determine Y
+		"ORR r3, r3, %[memAddr];" // Determine Y
+		
+		// Read row values
+		"LDR %[_actual], [r2];"
+		"CMP %[_actual], %[_pattern];"
+		"IT NE;"
+		"BNE ENDHAMMERTEST;"
+
+		"LDR %[_actual], [r3];"
+		"CMP %[_actual], %[_pattern];"
+		"IT NE;"
+		"BNE ENDHAMMERTEST;"
+
+
+		"SUB r5, r5, #1;"
+		"ADD %[_mask], %[_mask], #2;"
+		"CMP r5, #0;"
+		"IT NE;"
+		"BNE HAMMERCHECK;"
+
+		"MOV %[resultOutput], #0x1;" // Set result to success           
+		"ENDHAMMERTEST:"
+
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_actual] "+r" (actual), [_mask] "+r" (addrMask)
+    : "r" (memoryAddr), [_pattern] "r" (pattern)
+	: "r2", "r3", "r4", "r5", "r6"); // Clobbered register for temp storage: x and y and loop counter inner and outer and 1 temp for readings
+
+
+	if(result == 1) {
+		bootstrap_TxAckData("Hammer Test Success", 20);
+		return;
+	} 
+
+	char patternStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(pattern, patternStr, 8); 
+	int_to_hex_string(actual, actualStr, 8);
+
+	char resultStr[59] = "Hammer Test Failed. Expected 0x"; // Size = 31 chars for text + 2*8 for values + 11 for middle text + 1 null character
+
+	strlcat(resultStr, patternStr, 59);
+	strlcat(resultStr, " but got 0x", 59);
+	strlcat(resultStr, actualStr, 59);
+
+	bootstrap_TxAckData(resultStr, 59);
+}  
 
 static void handle_databusTest(bootstrap_req_t *req) {
 	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
 	uint32_t expected = 0;
 	uint32_t actual   = 0;
+
+	// ddr_usleep(5000000);
 
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
@@ -408,7 +591,6 @@ static void handle_databusTest(bootstrap_req_t *req) {
 
 	bootstrap_TxAckData(resultStr, 61);
 }  
-
 
 static void handle_addrBusTest(bootstrap_req_t *req) {
 	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
@@ -538,11 +720,11 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 
 	while(protection > 0) {
 		
-		uint8_t  ope = (instructions[PC]      ) & 0x3F;   // 111111b
-		uint8_t  rd  = (instructions[PC] >> 6 ) & 0x7;    // 111b  
-		uint8_t  r1  = (instructions[PC] >> 9 ) & 0x7;    // 111b
-		uint8_t  r2  = (instructions[PC] >> 12) & 0x7;    // 111b
-		uint32_t imm = (instructions[PC] >> 15) & 0XFFFF; // 1111.1111.1111.1111b    
+		volatile uint8_t  ope = (instructions[PC]      ) & 0x3F;   // 111111b
+		volatile uint8_t  rd  = (instructions[PC] >> 6 ) & 0x7;    // 111b  
+		volatile uint8_t  r1  = (instructions[PC] >> 9 ) & 0x7;    // 111b
+		volatile uint8_t  r2  = (instructions[PC] >> 12) & 0x7;    // 111b
+		volatile uint32_t imm = (instructions[PC] >> 15) & 0XFFFF; // 1111.1111.1111.1111b    
 		
 		PC++; // Update PC - not used until next repeat and might change in 
 
@@ -565,15 +747,15 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 				break;
 			case BOOTSTRAP_INTERP_END:
 				rd = (repeatStack.compareType & (1 << (repeatStack.pointer-1)));
-				r1 = repeatStack.counter[repeatStack.pointer-1] & 0x7;
-				r2 = repeatStack.counter[repeatStack.pointer-1] & 0x38;
-				if(rd == 0 && repeatStack.counter[repeatStack.pointer-1] <= 0) {
-					repeatStack.pointer--;
-				} else if(rd == 1 && variables[r1] == variables[r2]) {
+				r1 = repeatStack.counter[repeatStack.pointer-1]        & 0x7;
+				r2 = (repeatStack.counter[repeatStack.pointer-1] >> 3) & 0x7;
+				if((rd == 0 && repeatStack.counter[repeatStack.pointer-1] <= 0) || (rd > 0 && variables[r1] == variables[r2])) {
 					repeatStack.pointer--;
 				} else {
 					PC = repeatStack.location[repeatStack.pointer-1];
-					repeatStack.counter[repeatStack.pointer-1]--;
+					if(rd == 0) {
+						repeatStack.counter[repeatStack.pointer-1]--;
+					}
 				}
 				break;
 			case BOOTSTRAP_INTERP_LOOP:
@@ -595,7 +777,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 					return;
 				}
 				memPointer   = (uint32_t*) variables[r1];
-				variables[r1] = *memPointer;
+				variables[rd] = *memPointer;
 				break;
 			case BOOTSTRAP_INTERP_CMP:
 				if(variables[rd] != variables[r1]) {
@@ -605,7 +787,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 
 				break;
 			case BOOTSTRAP_INTERP_MOV:
-			    variables[rd] = r1;
+			    variables[rd] = variables[r1];
 				break;
 			case BOOTSTRAP_INTERP_MOVI:
 			    variables[rd] = imm;
@@ -1130,6 +1312,12 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_memoryTest_ones(&req, 0);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ONES_REV)) // Y - Walking Ones Test + Reverse
 			handle_memoryTest_ones(&req, 1);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ADDRESS))
+			handle_memoryTest_addr(&req, 0);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_ADDRESS_REV))
+			handle_memoryTest_addr(&req, 1);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_HAMMER))
+			handle_memoryTest_Hammer(&req); 
 		else if(is_cmd(&req, BOOTSTRAP_CUSTOM_PATTERN))
 			handle_custom_pattern(&req);
 		else

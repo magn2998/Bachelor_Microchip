@@ -446,8 +446,21 @@
 			</td>
 			</tr>
 			<tr>
+			<td><button style="width:100%" type="button" id="memorytest_chip_address">Address Pattern</button></td>
+			<td><input  class="memory_test_input" value="1" id="memorytest_address_reps" placeholder="repititions"/></td>
+			<td>
+				<input type="checkbox" id="memorytest_chip_address_reversed" name="address_reversed">
+				<label for="address_reversed">Reversed</label>
+			</td>
+			</tr>
+
+			<tr>
 			<td><button style="width:100%" type="button" id="memorytest_chip_burstwrite">Write Burst</button></td>
 			<td><input  class="memory_test_input" value="1" id="memorytest_burst_reps" placeholder="repititions"/></td>
+			</tr>
+			<tr>
+			<td><button style="width:100%" type="button" id="memorytest_chip_hammer">Hammer Test</button></td>
+			<td><input  class="memory_test_input" value="1" id="memorytest_hammer_reps" placeholder="repititions"/></td>
 			</tr>
 		</table>
     </div>
@@ -455,7 +468,7 @@
 
     <div style="max-width: 300px;">
     	<h2>Custom Pattern Testing</h2>
-    	<textarea id="memorytest_custom_pattern_input" placeholder="Write custom pattern code"></textarea>
+    	<textarea cols="10" rows="12" id="memorytest_custom_pattern_input" placeholder="Write custom pattern code"></textarea>
     	<button style="width:140px" type="button" id="memorytest_custom_pattern">Run Custom Pattern</button>
     </div>
 
