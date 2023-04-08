@@ -207,6 +207,14 @@ function format_customPattern_to_hexString(instructionArray) {
     return req;
 }
 
+function format_seed_to_reqString(seed) {
+	let req = CMD_DATA + ',' + fmtHex(1);
+	req += ',' + fmtHex(4); // The seed is a single 32 bit (4 byte) value
+	req += CMD_DELIM_HEX;
+	req += BigEndianToSmallEndianHexString(seed.toString(16).padStart(8,"0"));
+    return req;
+}
+
 function DDRconfigToArray(ddrConfig) {
 	let ddrArray = {
 		name: ddrConfig.info.version,
@@ -902,10 +910,20 @@ function startSerial()
 
 	let chiprndreps = 1;
     document.getElementById('memorytest_chip_rnd').addEventListener('click', async() => {
+  		let seedRaw = document.getElementById('memorytest_rnd_seed').value
+  		let seed = parseInt(seedRaw);
+  		if(isNaN(seed) || !seed) {
+  			alert("The given seed '"+seedRaw+"' is not valid.");
+  			setStatus("The given seed '"+seedRaw+"' is not valid.");
+  			return;
+  		}
+
+  		let reqArg = format_seed_to_reqString(seed);
+  		console.log(reqArg);
   		if(document.getElementById("memorytest_chip_rnd_reversed").checked) {
-  			await execute_memoryTest(CMD_MEMORYTEST_RND_REV, "memory chip test w. random & reversed pattern", chiprndreps);
+  			await execute_memoryTest(CMD_MEMORYTEST_RND_REV, "memory chip test w. random & reversed pattern (Seed: '"+seedRaw+"')", chiprndreps, reqArg);
   		} else {
-  			await execute_memoryTest(CMD_MEMORYTEST_RND, "memory chip test w. random pattern", chiprndreps);
+  			await execute_memoryTest(CMD_MEMORYTEST_RND, "memory chip test w. random pattern (Seed: '"+seedRaw+"')", chiprndreps, reqArg);
   		}
     });
 	
@@ -952,7 +970,7 @@ function startSerial()
     
 
 
-    async function execute_memoryTest(TESTID, TESTNAME, REPS) {
+    async function execute_memoryTest(TESTID, TESTNAME, REPS, argument) {
 		let s = disableButtons("bl2u", true);
 		let counter;
 		let repetitionText;
@@ -968,6 +986,12 @@ function startSerial()
 
 				let cont = await completeRequest(port, fmtReq(TESTID, 0));
 				console.log(cont);
+				// If the command was acknowledged and an argument is given, send the argument
+				// Used originally for the seeding part of the random pattern
+				if(cont.command == 'a' && argument) {
+					cont = await completeRequest(port, argument);
+					console.log(cont);
+				}
 				
 				while(cont.length == 0 || cont.data.indexOf("debug:") > -1) {
 					// Get response from port_reader stream

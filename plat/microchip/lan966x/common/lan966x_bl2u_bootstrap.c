@@ -182,8 +182,19 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
-	uint32_t randomizer = 0xFFFFDA61;
-	uint32_t startVal   = 0xFFFF00; 
+	uint32_t randomizer = 0xFFFFDA61; // Used to 'scramble' the pattern
+	uint32_t startVal   = 0xFFFF00; // Seed for the randomizer
+
+	// Signal it is ready to receive data from client
+	bootstrap_TxAck();
+
+	// Read instructions from request into instructions
+	int num_bytes = bootstrap_RxData((uint8_t*)&startVal, 1, sizeof startVal); // Read the first value - acts as the seed
+	
+	if(num_bytes != 4) {
+		bootstrap_TxAckData("Failed Reading the Seed", 24);
+	} 
+
 
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
