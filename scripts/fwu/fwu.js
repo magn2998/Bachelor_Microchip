@@ -45,6 +45,7 @@ const CMD_MEMORYTEST_HAMMER = 'w';
 const CMD_MEMORYTEST_CUSTOM = 'g';
 
 var globalVar;
+var timeObject = {};
 
 // Interface Object - contains all keys neccessary for the ddr config
 let ddr_config_interface ={
@@ -123,6 +124,30 @@ let ddr_config_interface ={
 	}
 }
 
+let countdown_times = {
+	wo_cache: {
+		[CMD_MEMORYTEST_DATABUS]:     0.011375,
+		[CMD_MEMORYTEST_ADDRBUS]:     0.01387,
+		[CMD_MEMORYTEST_RND]:         29.3412,
+		[CMD_MEMORYTEST_RND_REV]:     66.7543,
+		[CMD_MEMORYTEST_ONES]:        27.6234,
+		[CMD_MEMORYTEST_ONES_REV]:    65.8197,
+		[CMD_MEMORYTEST_ADDRESS]:     27.5571,
+		[CMD_MEMORYTEST_ADDRESS_REV]: 64.6093,
+		[CMD_MEMORYTEST_HAMMER]:      191.1659
+	},
+	w_cache: {
+		[CMD_MEMORYTEST_DATABUS]:     0.016384615,
+		[CMD_MEMORYTEST_ADDRBUS]:     0.01885,
+		[CMD_MEMORYTEST_RND]:         5.9182,
+		[CMD_MEMORYTEST_RND_REV]:     9.0488,
+		[CMD_MEMORYTEST_ONES]:        4.3297,
+		[CMD_MEMORYTEST_ONES_REV]:    6.6339,
+		[CMD_MEMORYTEST_ADDRESS]:     3.8897,
+		[CMD_MEMORYTEST_ADDRESS_REV]: 5.7575,
+		[CMD_MEMORYTEST_BURSTWRITE]:  0.0402
+	}	
+};
 
 let cur_stage = "connect";	// Initial "tab"
 let tracing = false;
@@ -969,16 +994,25 @@ function startSerial()
     });
     
 
-
+    
     async function execute_memoryTest(TESTID, TESTNAME, REPS, argument) {
 		let s = disableButtons("bl2u", true);
 		let counter;
 		let repetitionText;
+
+		// Start countdown timer
+		Countdown_Prepare();
+		if(document.getElementById("toggleCache").checked) {
+			Countdown_Start(countdown_times.w_cache[TESTID]*REPS);
+		} else {
+			Countdown_Start(countdown_times.wo_cache[TESTID]*REPS);
+		}
 		
 		try {
 			setStatus("Executing "+ TESTNAME);
 
 			let timeBefore = new Date();
+			
 
 			for(let i = 0; i < REPS; i++) {
 				counter = 1;
@@ -1010,12 +1044,21 @@ function startSerial()
 
 			let timeAfter = new Date();
 
-			console.log("Execution took " + ((timeAfter.getTime() - timeBefore.getTime())/1000) + " seconds.");
-
+			let chachedEnabled = document.getElementById("toggleCache").checked;
+			let cacheName = (chachedEnabled ? "_withcache" : "");
+			if(!timeObject[TESTID+cacheName]) {
+				timeObject[TESTID+cacheName] = {
+					total_time: 0,
+					total_reps: 0
+				};
+			}
+			timeObject[TESTID+cacheName].total_time += timeAfter.getTime() - timeBefore.getTime();
+			timeObject[TESTID+cacheName].total_reps += REPS;
 			
 		} catch(e) {
 			setStatus("Memory test encountered an error: " + e);
 		} finally {
+			Countdown_Stop();
 			restoreButtons(s);
 		}
     }
@@ -1466,4 +1509,44 @@ function startSerial()
 			restoreButtons(s);
 		} 
 	});
+
+
+	// Implement simple countdown functionality
+	let run_timer = false;
+	// Prepares the timer - simply used to avoid race conditions
+	function Countdown_Prepare() {
+		run_timer = true;
+	}
+	// Start a timer given an expected time given as seconds
+	async function Countdown_Start(time_s) {
+		time_s = Math.ceil(time_s); // Operates on integers
+		let counter = 0;
+		if(time_s <= 2) 
+			return; // Dont bother showing the countdown if the time is 2 or less seconds to finish
+
+
+		document.getElementById("countdown_timer").style.display = '';
+
+		while(run_timer) {
+			let exp_time_left = Math.abs(time_s-counter);
+			let mins = (Math.floor(exp_time_left/60)).toString().padStart(2,"0");
+			let secs = (exp_time_left % 60).toString().padStart(2,"0");
+			if(counter > time_s) {
+				document.getElementById("countdown_timer_time").innerText = "-" + mins + ":" + secs;
+			} else {
+				document.getElementById("countdown_timer_time").innerText = mins + ":" + secs;
+			}
+			counter++;
+			await sleep(1000);
+		}
+	}
+	// Stop the timer
+	function Countdown_Stop() {
+		run_timer = false;
+		document.getElementById("countdown_timer").style.display = 'none';
+	}
+	// Utility function to use sleep functionality. Source: https://stackoverflow.com/questions/951021/what-is-the-javascript-version-of-sleep
+	function sleep(ms) {
+	    return new Promise(resolve => setTimeout(resolve, ms));
+	}
 }
