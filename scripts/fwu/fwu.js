@@ -198,7 +198,7 @@ function validResponse(r)
 }
 
 // Generates a request to send over the DDR configuration as a HEX string
-function format_ddr_config_to_hexString(ddrConfig) {
+function format_ddr_config_to_data_request(ddrConfig) {
 	let ddrConfig_array = DDRconfigToArray(ddrConfig);
 
 	let req = CMD_DATA + ',' + fmtHex(1);
@@ -1367,7 +1367,7 @@ function startSerial()
 			let cont = await completeRequest(port, fmtReq(CMD_MEMORYCONFIG_INIT_CUSTOM, 0));
 			console.log(cont);
 
-			let req = format_ddr_config_to_hexString(ddr_config_interface); // Pass this object to the formatter
+			let req = format_ddr_config_to_data_request(ddr_config_interface); // Pass this object to the formatter
 			console.log(req);
 			cont = await completeRequest(port, req);
 
