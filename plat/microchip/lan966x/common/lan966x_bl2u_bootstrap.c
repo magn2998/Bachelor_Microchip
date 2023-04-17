@@ -101,7 +101,7 @@ static void handle_toggle_cache(bootstrap_req_t *req, uint8_t toggle) { // Toggl
 
 
 static void handle_memoryTest_burst(bootstrap_req_t *req) {
-	// Cache size is L1 data cache and L2 cache. L1 has max size of 64kb and L2 has max size of 1MB which is a total of 1114112 bytes (same amount of addresses)
+	// Cache size is L1 data cache. L1 has max size of 32kb 
 	// Strategy:
 	// Write to at least 1114112 (0x110000) DIFFERENT addresses - Alternate between 0xAA and 0x55
 	// Perform a cache flush (Clean and invalidate cache)
@@ -114,23 +114,28 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	uint32_t maxAddress  = memoryAddr + 0x8000;
 
-	for(int i = 0; i < 20; i++) {
-		asm volatile ( // Fill up cache
-			"DSB;"
-			"MOV r1, %[memAddr];" // Copy memory address
-			"MOV r2, %[_expected];"
-			"WRITEBURSTLOOP1:"
-			"STRB r2, [r1];"
-			"LDRB r2, [r1];" // Read-Allocate => Write into cache
-			"MVN r2, r2;" // Reverse Pattern
-			"ADD r1, r1, #1;" 
-			"CMP r1, %[maxAddr];"
-			"IT NE;"
-			"BNE WRITEBURSTLOOP1;"
-		: 
-	    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress), [_expected] "r" (expected)
-		: "r1", "r2");
-	}
+	asm volatile ( // Fill up cache
+		"DSB;"
+		"MOV r1, %[memAddr];" // Copy memory address
+		"MOV r2, %[_expected];"
+		"MOV r3, #4;" // Do it 4 times to ensure entire cache is filled
+		"RedoWriteBurstLoop:"
+		"WRITEBURSTLOOP1:"
+		"STRB r2, [r1];"
+		"LDRB r2, [r1];" // Read-Allocate => Write into cache
+		"MVN r2, r2;" // Reverse Pattern
+		"ADD r1, r1, #1;" 
+		"CMP r1, %[maxAddr];"
+		"IT NE;"
+		"BNE WRITEBURSTLOOP1;"
+		"MOV r1, %[memAddr];" // Reset Memory Address
+		"SUB r3, r3, #1;"
+		"CMP r3, #0;"
+		"IT NE;"
+		"BNE RedoWriteBurstLoop;"
+	: 
+    : [memAddr] "r" (memoryAddr), [maxAddr] "r" (maxAddress), [_expected] "r" (expected)
+	: "r1", "r2", "r3");
 
 	flush_dcache_range((uint64_t) LAN966X_DDR_BASE, 0x8000); // Flush old cache data to memory
 
