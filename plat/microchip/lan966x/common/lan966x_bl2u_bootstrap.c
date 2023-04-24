@@ -459,7 +459,7 @@ static void handle_memoryTest_addr(bootstrap_req_t *req, uint8_t reversed) {
 
 static void handle_memoryTest_Hammer(bootstrap_req_t *req) {
 	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
-	uint32_t pattern  = 0xF5F5F5F5;
+	uint32_t pattern  = 0xFFFFFFFF;
 	uint32_t actual   = 0;
 	uint32_t addrMask = 0; // mask for selecting address of different rows
 
@@ -476,56 +476,39 @@ static void handle_memoryTest_Hammer(bootstrap_req_t *req) {
 		"BNE HAMMERPOPULATE;"
 
 		"MOV %[_mask], #0;" // Set first Mask value to 0
-		"MOV r5, #100;"     // Outer loop is done 100 times.
+
 		"HAMMEROUTERLOOP:" // Begin Test
-		"LSL r2, %[_mask], #9;"   // Determine X
+		"LSL r2, %[_mask], #23;"   // Determine X
 		"ORR r2, r2, %[memAddr];" // Determine X
-		"ADD r3, %[_mask], #1;"   // Determine Y
-		"LSL r3, r3, #9;"         // Determine Y
-		"ORR r3, r3, %[memAddr];" // Determine Y
+		"ORR r3, r2, #0x4000;" // Determine Y - Set row bit 4, which is at bit 14 of address
+		
 		"MOVW r4, #0x4B40;"          // Max Iterations for inner loop: 10 million
 		"MOVT r4, #0x4C;"            // Write 16 last bits 
+
 		"HAMMERINNERLOOP:"
 		"LDR %[_actual], [r2];"
-		"LDR r6, [r3];"
+		"LDR r5, [r3];"
 		"SUB r4, r4, #1;"
 		"DSB;"
 		"CMP r4, #0;"
 		"IT NE;"
 		"BNE HAMMERINNERLOOP;"
-		"SUB r5, r5, #1;"
-		"ADD %[_mask], %[_mask], #2;"
-		"CMP r5, #0;"
+
+		"ADD %[_mask], %[_mask], #1;"
+		"CMP %[_mask], #64;"
 		"IT NE;"
 		"BNE HAMMEROUTERLOOP;"
 
 
 
-		// Read all effected rows
-		"MOV %[_mask], #0;" // Set first Mask value to 0
-		"MOV r5, #100;"     // Outer loop is done 100 times.
+		// Read all addresses
+		"MOV r2, %[memAddr];" //Use r2 for indexing address
 		"HAMMERCHECK:" // Check row values
-		"LSL r2, %[_mask], #9;"   // Determine X
-		"ORR r2, r2, %[memAddr];" // Determine X
-		"ADD r3, %[_mask], #1;"   // Determine Y
-		"LSL r3, r3, #9;"         // Determine Y
-		"ORR r3, r3, %[memAddr];" // Determine Y
-		
-		// Read row values
-		"LDR %[_actual], [r2];"
+		"LDR %[_actual], [r2], #4;"
 		"CMP %[_actual], %[_pattern];"
 		"IT NE;"
 		"BNE ENDHAMMERTEST;"
-
-		"LDR %[_actual], [r3];"
-		"CMP %[_actual], %[_pattern];"
-		"IT NE;"
-		"BNE ENDHAMMERTEST;"
-
-
-		"SUB r5, r5, #1;"
-		"ADD %[_mask], %[_mask], #2;"
-		"CMP r5, #0;"
+		"CMP r2, r3;" // Check is max-address is reached
 		"IT NE;"
 		"BNE HAMMERCHECK;"
 
@@ -534,7 +517,7 @@ static void handle_memoryTest_Hammer(bootstrap_req_t *req) {
 
 	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_actual] "+r" (actual), [_mask] "+r" (addrMask)
     : "r" (memoryAddr), [_pattern] "r" (pattern)
-	: "r2", "r3", "r4", "r5", "r6"); // Clobbered register for temp storage: x and y and loop counter inner and outer and 1 temp for readings
+	: "r2", "r3", "r4", "r5"); // Clobbered register for temp storage
 
 
 	if(result == 1) {
@@ -711,7 +694,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	num_bytes = bootstrap_RxData((uint8_t*)instructions, 1, sizeof instructions); // Read the request - 256 bytes
 
 	if(num_bytes != (sizeof instructions)) {
-		bootstrap_TxAckData("Failed uploading config", 24);
+		bootstrap_TxAckData("Failed uploading program", 25);
 	} 
 
 	struct returnPointer {
@@ -809,7 +792,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 			    variables[rd] = imm;
 				break;
 			case BOOTSTRAP_INTERP_MOVETOP:
-			    variables[rd] = (imm << 16) & (variables[rd] & 0xFFFF);
+			    variables[rd] = (imm << 16) | (variables[rd] & 0xFFFF);
 				break;
 			case BOOTSTRAP_INTERP_ADD:
 			    variables[rd] = variables[r1] + variables[r2];

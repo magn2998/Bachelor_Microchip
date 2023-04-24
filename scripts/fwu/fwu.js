@@ -908,14 +908,14 @@ function startSerial()
 
 
 	const enableMemoryTestSection = ()=>{
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = false;
 		}
 	}
 
 	const disableMemoryTestSection = ()=> {
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = true;
 		}
@@ -999,6 +999,7 @@ function startSerial()
 		let s = disableButtons("bl2u", true);
 		let counter;
 		let repetitionText;
+		let timeRepBefore, diffMs, diffMins, diffSecs
 
 		// Start countdown timer
 		Countdown_Prepare();
@@ -1016,6 +1017,7 @@ function startSerial()
 
 			for(let i = 0; i < REPS; i++) {
 				counter = 1;
+				timeRepBefore = new Date(); 
 				repetitionText = (REPS == 1) ? "" : (" (" + (i+1) + "/" + REPS + ") ");
 
 				let cont = await completeRequest(port, fmtReq(TESTID, 0));
@@ -1039,7 +1041,10 @@ function startSerial()
 						setStatus("Executing " + TESTNAME + " - "+(counter++)+"% done."+repetitionText, true);
 					}
 				}
-				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data);
+				diffMs = (new Date()) - timeBefore;
+				diffMins = Math.floor(diffMs / 60000).toString().padStart(2,'0'); 
+				diffSecs = Math.floor((diffMs % 60000) / 1000).toString().padStart(2,'0'); 
+				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data + " - Time: " + diffMins + ":"+diffSecs);
 			}
 
 			let timeAfter = new Date();
