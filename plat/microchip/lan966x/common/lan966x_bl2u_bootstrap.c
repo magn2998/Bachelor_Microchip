@@ -10,6 +10,7 @@
 #include <drivers/microchip/qspi.h>
 #include <drivers/mmc.h>
 #include <drivers/partition/partition.h>
+#include <drivers/delay_timer.h>
 #include <endian.h>
 #include <errno.h>
 #include <plat/common/platform.h>
@@ -294,6 +295,8 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
+	uint32_t expected = 1; // Used as the pattern - what to expect at each address
+	uint32_t actual = 1; // What was actually read at each address
 
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
@@ -314,16 +317,17 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV r1, #1;"         // Reset Pattern
 		"MOV %[memAddr], r3;" // Return to base memory address
 		"LOOP2:"
-		"LDR r4, [%[memAddr]], #4;" // read from memory
-		"CMP r1, r4;"  // Compare pattern and read value
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"MOV %[_expected], r1;" // Move pattern into expected value
+		"CMP %[_expected], %[_actual];"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
 		"BNE ENDTEST;" // Branch end-test if they're not equal
 
 		"CMP %[isReversed], 0x1;" // If it is reversed, write the inverse value, otherwise continue
 		"ITTT EQ;"
-		"MVNEQ r4, r1;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"MVNEQ %[_actual], r1;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
 		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
-		"STREQ r4, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+		"STREQ %[_actual], [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
 		"ITE NE;"           // Prepare If-Then statement
@@ -340,9 +344,9 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV r1, #1;"         // Reset Pattern
 		"MOV %[memAddr], r3;" // Return to base memory address
 		"LOOP3:"
-		"LDR r4, [%[memAddr]], #4;" // read from memory
-		"MVN r4, r4;"  // Negate Value from memory
-		"CMP r1, r4;"  // Compare pattern and read value
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"MVN %[_expected], r1;"  // Negate Pattern to get expected value
+		"CMP %[_expected], %[_actual];"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
 		"BNE ENDTEST;" // Branch end-test if they're not equal
 		"CMP r1, r2;"       // Check that pattern has reached 0x80000000
@@ -356,9 +360,9 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		"SKIPLOOP3:"
 		"MOV %[resultOutput], #0x1;" // Set result to success
 		"ENDTEST:"
-	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result)
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_expected] "=r" (expected), [_actual] "=r" (actual)
     : "r" (memoryAddr), [isReversed] "r" (reversed) 
-	: "r1", "r2", "r3", "r4"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register
+	: "r1", "r2", "r3"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register
 
 
 	if(result == 0x1) {
@@ -366,12 +370,21 @@ static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
 		return;
 	} 
 
-
-	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
+	char addressStr[9];  // String of address - takes 8 characters, plus one null terminated character
+	char expectedStr[9]; 
+	char actualStr[9]; 
 	int_to_hex_string(memoryAddr-0x4, addressStr, 8); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
-	char resultStr[57] = "Assembly Walking Ones Test Failed at Address: 0x"; // Size = 48 chars for text + 9 for address text
-	strlcat(resultStr, addressStr, 57);
-	bootstrap_TxAckData(resultStr, 57);
+	int_to_hex_string(expected, expectedStr, 8); 
+	int_to_hex_string(actual, actualStr, 8);
+
+	char resultStr[97] = "Assembly Walking Ones Test Failed at Address: 0x"; // Size = 67 . chars for text[67] + 8*3 for address and values + 1 null character
+	strlcat(resultStr, addressStr, 97);
+	strlcat(resultStr, ". Expected 0x", 97);	
+	strlcat(resultStr, expectedStr, 97);
+	strlcat(resultStr, " but got 0x", 97);	
+	strlcat(resultStr, actualStr, 97);
+
+	bootstrap_TxAckData(resultStr, 97);
 }
 
 static void handle_memoryTest_addr(bootstrap_req_t *req, uint8_t reversed) {
@@ -693,6 +706,8 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	// Read instructions from request into instructions
 	num_bytes = bootstrap_RxData((uint8_t*)instructions, 1, sizeof instructions); // Read the request - 256 bytes
 
+	udelay(10000); // Small delay - if answer comes too fast, it might crash..
+
 	if(num_bytes != (sizeof instructions)) {
 		bootstrap_TxAckData("Failed uploading program", 25);
 	} 
@@ -716,6 +731,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	volatile uint64_t protection = 0x1000000000; // Max repetitions - Alot
 	volatile uint32_t loopBegin = 0; // Where the program should return to when the end is reached
 	volatile uint32_t* memPointer; // Pointer used to undex DDR memory
+
 
 	while(protection > 0) {
 		
@@ -780,7 +796,23 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 				break;
 			case BOOTSTRAP_INTERP_CMP:
 				if(variables[rd] != variables[r1]) {
-					bootstrap_TxAckData("Mismatch!", 10);
+					// Reply Structure - Comparison didn't match. Failed at instruction 0xxx. Expected 0xxxxxxxxx but got 0xxxxxxxxx
+					char pcStr[3]; 
+					char expectedStr[9]; 
+					char received[9]; 
+					int_to_hex_string(variables[rd], expectedStr, 8);
+					int_to_hex_string(variables[r1], received, 8); 
+					int_to_hex_string(PC-1, pcStr, 2);
+
+					char failedStr[92] = "Comparison didn't match. Failed at instruction 0x";
+
+					strlcat(failedStr, pcStr, 92);
+					strlcat(failedStr, ". Expected 0x", 92);	
+					strlcat(failedStr, expectedStr, 92);
+					strlcat(failedStr, " but got 0x", 92);	
+					strlcat(failedStr, received, 92);
+
+					bootstrap_TxAckData(failedStr, 92);
 					return;
 				}
 
