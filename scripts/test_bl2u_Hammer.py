@@ -37,7 +37,7 @@ lan966x.reload_symbols(debugger, buildSrc + "/bl2u/bl2u.elf")
 startInstr = GetLabelAddress("HAMMERPOPULATE",  buildSrc + "/bl2u/bl2u.dump") - 10
 populateInstr = GetLabelAddress("HAMMERCHECK",  buildSrc + "/bl2u/bl2u.dump") - 2
 endInstr = GetLabelAddress("ENDHAMMERTEST",  buildSrc + "/bl2u/bl2u.dump")
-memoryReg = "r6"
+memoryReg = "r2"
 statusFlagReg = "r5"
 
 print(hex(startInstr))
