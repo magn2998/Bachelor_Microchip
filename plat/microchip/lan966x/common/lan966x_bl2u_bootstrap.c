@@ -187,7 +187,6 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
-	uint32_t randomizer = 0xFFFFDA61; // Used to 'scramble' the pattern
 	uint32_t startVal   = 0xFFFF00; // Seed for the randomizer
 	uint32_t expected   = 0x0; // What value the test expects
 	uint32_t actual     = 0x0; // What the test actually got
@@ -206,41 +205,42 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
 	asm volatile (
 		// Prepare randomization algorithm
-		"MOV r4, %[x];" // Lower 32 bits of x
-		"MOV r5, #0;"   // Upper 32 bits of x
+		"MOV r6, %[x];" // Save Randomizer Value
+		"MOV r3, r6;" // Lower 32 bits of x
+		"MOV r4, #0;"   // Upper 32 bits of x
 		// Prepare constants		
-		"MOV r2, #0;"          // Max value for the address - Has to use Mov and Movt since imm is only 16 bits.
-		"MOVT r2, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
-		"MOV r3, %[memAddr];"  // Save base address for later use
+		"MOV r1, #0;"          // Max value for the address - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r1, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
+		"MOV r2, %[memAddr];"  // Save base address for later use
 		// First loop - populate DDR memory
 		"RNDLOOP1:" // Label for beginning first loop
-		"STR r4, [%[memAddr]], #4;" // Store value
-		"BL RANDOM;" // Randomize r4 value
-		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"STR r3, [%[memAddr]], #4;" // Store value
+		"BL RANDOM;" // Randomize r3 value
+		"CMP %[memAddr], r1;" // Check is max-address is reached
 		"IT NE;"
 		"BNE RNDLOOP1;"
 		// Reset Randomization Algorithm
-		"MOV r4, %[x];" // Lower 32 bits of x
-		"MOV r5, #0;"   // Upper 32 bits of x
-		"MOV %[memAddr], r3;" // Return to base memory address
+		"MOV r3, r6;" // Lower 32 bits of x
+		"MOV r4, #0;"   // Upper 32 bits of x
+		"MOV %[memAddr], r2;" // Return to base memory address
 
 
 		// Second Loop - Check DDR memory
 		"RNDLOOP2:"
 		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
-		"MOV %[_expected], r4;"
+		"MOV %[_expected], r3;"
 		"CMP %[_actual], %[_expected];"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
 
 		"CMP %[resultOutput], 0x1;" // If it is reversed, write the inverse value, otherwise continue
 		"ITTT EQ;"
-		"MVNEQ %[_actual], r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"MVNEQ %[_actual], r3;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
 		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
 		"STREQ %[_actual], [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
-		"BL RANDOM;" // Randomize r4 value
-		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"BL RANDOM;" // Randomize r3 value
+		"CMP %[memAddr], r1;" // Check is max-address is reached
 		"IT NE;"
 		"BNE RNDLOOP2;"
 
@@ -251,18 +251,18 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 		"BNE SKIPRNDLOOP3;" // Skip loop 3 if is shouldn't do reverse check
 
 		// Reset Randomization Algorithm Again
-		"MOV r4, %[x];" // Lower 32 bits of x
-		"MOV r5, #0;"   // Upper 32 bits of x
-		"MOV %[memAddr], r3;" // Return to base memory address
+		"MOV r3, r6;" // Lower 32 bits of x
+		"MOV r4, #0;"   // Upper 32 bits of x
+		"MOV %[memAddr], r2;" // Return to base memory address
 		// Third Loop - Check reversed DDR memory
 		"RNDLOOP3:"
 		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
-		"MVN %[_expected], r4;"               // Reverse value read from memory
+		"MVN %[_expected], r3;"               // Reverse value read from memory
 		"CMP %[_actual], %[_expected];"  // Compare pattern and inversed expected
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
-		"BL RANDOM;" // Randomize r4 value
-		"CMP %[memAddr], r2;" // Check is max-address is reached
+		"BL RANDOM;" // Randomize r3 value
+		"CMP %[memAddr], r1;" // Check is max-address is reached
 		"IT NE;"
 		"BNE RNDLOOP3;"
 
@@ -271,16 +271,18 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV %[resultOutput], #2;" 
 		"B ENDRNDTEST;" // End test
 
-		"RANDOM:" // Enter "function" to determine random value based on a[rnd] and lower bits of x[r4] stores in [r6,r7]
-		"UMULL r4, r7, %[rnd], r4;" // Multiply a[32 bit] with lower bits of x[r4]
-		"ADDS r4, r4, r5;"       // Add lower bits of previous result with upper bits of x[r5]. Store as the new lower bits of x[r4] + S for setting (carry) flags
-		"ADC r5, r7, #0;"       // Adds any carry value to the upper bits of the new x value
-		"BX r14;"                // Return to LR address. Result is stored in r7 and r8, lower and upper 32 bits respectively
+		"RANDOM:" // Enter "function" to determine random value based on a[rnd] and lower bits of x[r3] stores in [r3,r5]
+		"MOV r5, #0xDA61;"
+		"MOVT r5, #0xFFFF;" // Value 0xFFFFDA61 used to scramble the pattern
+		"UMULL r3, r5, r5, r3;" // Multiply a[32 bit] with lower bits of x[r3]
+		"ADDS r3, r3, r4;"       // Add lower bits of previous result with upper bits of x[r4]. Store as the new lower bits of x[r3] + S for setting (carry) flags
+		"ADC r4, r5, #0;"       // Adds any carry value to the upper bits of the new x value
+		"BX r14;"                // Return to LR address. Result is stored in r3 and r4, lower and upper 32 bits respectively
 
 		"ENDRNDTEST:"
 	: [memAddr] "+&r" (memoryAddr), [resultOutput] "+&r" (result), [_expected] "+&r" (expected), [_actual] "+&r" (actual)
-    : "r" (memoryAddr), [rnd] "r" (randomizer), [x] "r" (startVal)
-	: "r2", "r3", "r4", "r5", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
+    : "r" (memoryAddr), [x] "r" (startVal)
+	: "r1", "r2", "r3", "r4", "r5", "r6"); // Clobbered register for temp storage. In order: MaxValue, Base Address, Random value lower and upper bits, temp register and Randomizer Value (r6)
 
 
 	if(result == 0x2) {
@@ -657,7 +659,6 @@ static void handle_databusTest(bootstrap_req_t *req) {
 
 		"DATABUSLOOP1:" // Begin Test
 		"STR %[_expected], [%[memAddr]];" // Store value at a chosen address in the DDR chip
-		"DSB;"                  // Ensure value has been stored
 		"LDR %[_actual], [%[memAddr]];" // Load value 
 		"CMP %[_expected], %[_actual];"           // Compare read with written
 		"IT NE;"
