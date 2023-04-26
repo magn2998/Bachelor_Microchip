@@ -41,6 +41,8 @@ const CMD_MEMORYTEST_ADDRESS_REV = 'q';
 const CMD_MEMORYTEST_DATABUS = 'k';
 const CMD_MEMORYTEST_ADDRBUS = 'K';
 const CMD_MEMORYTEST_HAMMER = 'w';
+const CMD_MEMORYTEST_BITFADE = 'F';
+const CMD_MEMORYTEST_BITFADE_ALLZEROS = 'E';
 
 const CMD_MEMORYTEST_CUSTOM = 'g';
 
@@ -232,13 +234,14 @@ function format_customPattern_to_hexString(instructionArray) {
     return req;
 }
 
-function format_seed_to_reqString(seed) {
+function format_uint32_to_reqString(val) {
 	let req = CMD_DATA + ',' + fmtHex(1);
-	req += ',' + fmtHex(4); // The seed is a single 32 bit (4 byte) value
+	req += ',' + fmtHex(4); // The value is a single 32 bit (4 byte) value
 	req += CMD_DELIM_HEX;
-	req += BigEndianToSmallEndianHexString(seed.toString(16).padStart(8,"0"));
+	req += BigEndianToSmallEndianHexString(val.toString(16).padStart(8,"0"));
     return req;
 }
+
 
 function DDRconfigToArray(ddrConfig) {
 	let ddrArray = {
@@ -908,14 +911,14 @@ function startSerial()
 
 
 	const enableMemoryTestSection = ()=>{
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern", "memorytest_chip_bitfade", "memorytest_bitfade_reps", "memorytest_bitfade_timeout", "memorytest_chip_bitfade_allZeros"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = false;
 		}
 	}
 
 	const disableMemoryTestSection = ()=> {
-		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern"];
+		let inputIds = ["memorytest_dataBus", "memorytest_dataBus_reps", "memorytest_addressBus", "memorytest_chip_hammer", "memorytest_hammer_reps", "memorytest_addrBus_reps", "memorytest_chip_rnd", "memorytest_chip_address", "memorytest_rnd_reps", "memorytest_chip_rnd_reversed", "memorytest_chip_walkingOnes", "memorytest_ones_reps", "memorytest_chip_walkingOnes_reversed", "memorytest_chip_burstwrite", "memorytest_burst_reps", "memorytest_rnd_seed", "memorytest_address_reps", "memorytest_chip_address_reversed", "memorytest_custom_pattern", "memorytest_chip_bitfade", "memorytest_bitfade_reps", "memorytest_bitfade_timeout", "memorytest_chip_bitfade_allZeros"];
 		for(let i = 0; i < inputIds.length; i++) {
 			document.getElementById(inputIds[i]).disabled = true;
 		}
@@ -943,12 +946,31 @@ function startSerial()
   			return;
   		}
 
-  		let reqArg = format_seed_to_reqString(seed);
+  		let reqArg = format_uint32_to_reqString(seed);
   		console.log(reqArg);
   		if(document.getElementById("memorytest_chip_rnd_reversed").checked) {
   			await execute_memoryTest(CMD_MEMORYTEST_RND_REV, "memory chip test w. random & reversed pattern (Seed: '"+seedRaw+"')", chiprndreps, reqArg);
   		} else {
   			await execute_memoryTest(CMD_MEMORYTEST_RND, "memory chip test w. random pattern (Seed: '"+seedRaw+"')", chiprndreps, reqArg);
+  		}
+    });
+
+    let chipFadeReps = 1;
+    document.getElementById('memorytest_chip_bitfade').addEventListener('click', async() => {
+  		let timeoutRaw = document.getElementById('memorytest_bitfade_timeout').value
+  		let timeoutT = parseInt(timeoutRaw);
+  		if(isNaN(timeoutT) || !timeoutT) {
+  			alert("The given timeout time '"+timeoutRaw+"' is not valid.");
+  			setStatus("The given timeout time '"+timeoutRaw+"' is not valid.");
+  			return;
+  		}
+
+  		let reqArg = format_uint32_to_reqString(timeoutT*1000); // Convert the time from seconds to milliseconds
+  		console.log(reqArg);
+  		if(document.getElementById("memorytest_chip_bitfade_allZeros").checked) {
+  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE_ALLZEROS, "Bit Fade Test with all zeros (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg);
+  		} else {
+  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE, "Bit Fade Test with all ones (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg);
   		}
     });
 	
@@ -1045,6 +1067,8 @@ function startSerial()
 				diffMins = Math.floor(diffMs / 60000).toString().padStart(2,'0'); 
 				diffSecs = Math.floor((diffMs % 60000) / 1000).toString().padStart(2,'0'); 
 				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data + " - Time: " + diffMins + ":"+diffSecs);
+				
+				Countdown_Reset();
 			}
 
 			let timeAfter = new Date();
@@ -1071,6 +1095,7 @@ function startSerial()
 	document.getElementById("memorytest_dataBus_reps").addEventListener("focusout", (e) => (databusReps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_addrBus_reps").addEventListener("focusout", (e) => (addrbusReps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_rnd_reps").addEventListener("focusout", (e) => (chiprndreps = formatRepetitionInputField(e)));
+	document.getElementById("memorytest_bitfade_reps").addEventListener("focusout", (e) => (chipFadeReps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_ones_reps").addEventListener("focusout", (e) => (chiponesreps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_address_reps").addEventListener("focusout", (e) => (chipaddresssreps = formatRepetitionInputField(e)));
 	document.getElementById("memorytest_burst_reps").addEventListener("focusout", (e) => (chipburstsreps = formatRepetitionInputField(e)));
@@ -1518,30 +1543,33 @@ function startSerial()
 
 	// Implement simple countdown functionality
 	let run_timer = false;
+	let time_counter;
 	// Prepares the timer - simply used to avoid race conditions
 	function Countdown_Prepare() {
 		run_timer = true;
 	}
+	function Countdown_Reset() {
+		time_counter = 0;
+	}
 	// Start a timer given an expected time given as seconds
 	async function Countdown_Start(time_s) {
 		time_s = Math.ceil(time_s); // Operates on integers
-		let counter = 0;
 		if(time_s <= 2) 
 			return; // Dont bother showing the countdown if the time is 2 or less seconds to finish
 
-
 		document.getElementById("countdown_timer").style.display = '';
 
+		Countdown_Reset();
 		while(run_timer) {
-			let exp_time_left = Math.abs(time_s-counter);
+			let exp_time_left = Math.abs(time_s-time_counter);
 			let mins = (Math.floor(exp_time_left/60)).toString().padStart(2,"0");
 			let secs = (exp_time_left % 60).toString().padStart(2,"0");
-			if(counter > time_s) {
+			if(time_counter > time_s) {
 				document.getElementById("countdown_timer_time").innerText = "-" + mins + ":" + secs;
 			} else {
 				document.getElementById("countdown_timer_time").innerText = mins + ":" + secs;
 			}
-			counter++;
+			time_counter++;
 			await sleep(1000);
 		}
 	}

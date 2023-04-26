@@ -81,6 +81,10 @@
 #define BOOTSTRAP_MEMORYTEST_HAMMER   'w'
 // Upload Custom Pattern
 #define BOOTSTRAP_CUSTOM_PATTERN   'g'
+// Memory Chip Test: Bit Fade Pattern
+#define BOOTSTRAP_MEMORYTEST_BITFADE 'F'
+// Memory Chip Test: Bit Fade Pattern using all Zeros
+#define BOOTSTRAP_MEMORYTEST_BITFADE_ALLZEROS 'E'
 
 #define BSTRAP_HEXFLD_LEN	8
 

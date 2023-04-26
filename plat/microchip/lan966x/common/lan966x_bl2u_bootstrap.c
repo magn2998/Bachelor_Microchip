@@ -185,11 +185,12 @@ static void handle_memoryTest_burst(bootstrap_req_t *req) {
 	bootstrap_TxAckData(resultStr, 85);
 }
 
-
 static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 	uint8_t result = reversed; // Flag for result - Also indicates whether it is reversed or not
 	uint32_t randomizer = 0xFFFFDA61; // Used to 'scramble' the pattern
 	uint32_t startVal   = 0xFFFF00; // Seed for the randomizer
+	uint32_t expected   = 0x0; // What value the test expects
+	uint32_t actual     = 0x0; // What the test actually got
 
 	// Signal it is ready to receive data from client
 	bootstrap_TxAck();
@@ -226,16 +227,17 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 
 		// Second Loop - Check DDR memory
 		"RNDLOOP2:"
-		"LDR r1, [%[memAddr]], #4;" // read from memory
-		"CMP r1, r4;"  // Compare pattern and read value
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"MOV %[_expected], r4;"
+		"CMP %[_actual], %[_expected];"  // Compare pattern and read value
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
 
 		"CMP %[resultOutput], 0x1;" // If it is reversed, write the inverse value, otherwise continue
 		"ITTT EQ;"
-		"MVNEQ r1, r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
+		"MVNEQ %[_actual], r4;" // MVN - Move Not - Move and perform bitwise not - Basically Negation on pattern - Reversing Pattern
 		"SUBEQ %[memAddr], %[memAddr], #4;" // Move address one down again
-		"STREQ r1, [%[memAddr]], #4;"         // Store negated value at address and increment address again
+		"STREQ %[_actual], [%[memAddr]], #4;"         // Store negated value at address and increment address again
 
 		"BL RANDOM;" // Randomize r4 value
 		"CMP %[memAddr], r2;" // Check is max-address is reached
@@ -254,9 +256,9 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 		"MOV %[memAddr], r3;" // Return to base memory address
 		// Third Loop - Check reversed DDR memory
 		"RNDLOOP3:"
-		"LDR r1, [%[memAddr]], #4;" // read from memory
-		"MVN r1, r1;"               // Reverse value read from memory
-		"CMP r1, r4;"  // Compare pattern and inversed read value
+		"LDR %[_actual], [%[memAddr]], #4;" // read from memory
+		"MVN %[_expected], r4;"               // Reverse value read from memory
+		"CMP %[_actual], %[_expected];"  // Compare pattern and inversed expected
 		"IT NE;"       // Prepare branch
 		"BNE ENDRNDTEST;" // Branch end-test if they're not equal
 		"BL RANDOM;" // Randomize r4 value
@@ -270,15 +272,15 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 		"B ENDRNDTEST;" // End test
 
 		"RANDOM:" // Enter "function" to determine random value based on a[rnd] and lower bits of x[r4] stores in [r6,r7]
-		"UMULL r6, r7, %[rnd], r4;" // Multiply a[32 bit] with lower bits of x[r4]
-		"ADDS r4, r6, r5;"       // Add lower bits of previous result with upper bits of x[r5]. Store as the new lower bits of x[r4] + S for setting (carry) flags
+		"UMULL r4, r7, %[rnd], r4;" // Multiply a[32 bit] with lower bits of x[r4]
+		"ADDS r4, r4, r5;"       // Add lower bits of previous result with upper bits of x[r5]. Store as the new lower bits of x[r4] + S for setting (carry) flags
 		"ADC r5, r7, #0;"       // Adds any carry value to the upper bits of the new x value
 		"BX r14;"                // Return to LR address. Result is stored in r7 and r8, lower and upper 32 bits respectively
 
 		"ENDRNDTEST:"
-	: [memAddr] "+&r" (memoryAddr), [resultOutput] "+&r" (result)
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "+&r" (result), [_expected] "+&r" (expected), [_actual] "+&r" (actual)
     : "r" (memoryAddr), [rnd] "r" (randomizer), [x] "r" (startVal)
-	: "r1", "r2", "r3", "r4", "r5", "r6", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
+	: "r2", "r3", "r4", "r5", "r7"); // Clobbered register for temp storage. In order: Pattern, MaxValue, Base Address, Read Value from memory register and three temp registers
 
 
 	if(result == 0x2) {
@@ -286,11 +288,22 @@ static void handle_memoryTest_rnd(bootstrap_req_t *req, uint8_t reversed) {
 		return;
 	} 
 
-	char addressStr[9]; // String of address - takes 8 characters, plus one null terminated character
+
+	char addressStr[9];  // String of address - takes 8 characters, plus one null terminated character
+	char expectedStr[9]; 
+	char actualStr[9]; 
 	int_to_hex_string(memoryAddr-0x4, addressStr, 8); // Remember to remove 0x4 from the address, since it is added before the check in the assembly code
-	char resultStr[50] = "Random Pattern Test Failed at Address: 0x"; // Size = 41 chars for text + 9 for address text
-	strlcat(resultStr, addressStr, 50);
-	bootstrap_TxAckData(resultStr, 50);
+	int_to_hex_string(expected, expectedStr, 8); 
+	int_to_hex_string(actual, actualStr, 8);
+
+	char resultStr[90] = "Random Pattern Test Failed at Address: 0x"; // Size = 60 . chars for text[60] + 8*3 for address and values + 1 null character
+	strlcat(resultStr, addressStr, 90);
+	strlcat(resultStr, ". Expected 0x", 90);	
+	strlcat(resultStr, expectedStr, 90);
+	strlcat(resultStr, " but got 0x", 90);	
+	strlcat(resultStr, actualStr, 90);
+
+	bootstrap_TxAckData(resultStr, 90);
 }
 
 static void handle_memoryTest_ones(bootstrap_req_t *req, uint8_t reversed) {
@@ -552,6 +565,83 @@ static void handle_memoryTest_Hammer(bootstrap_req_t *req) {
 	bootstrap_TxAckData(resultStr, 59);
 }  
 
+static void handle_memoryTest_BitFade(bootstrap_req_t *req, uint8_t allZeros) {
+	uint8_t result = 0; // Flag for result
+	uint32_t timeout = 0x0; // Holds the time to "fade" (timeout time)
+	uint32_t pattern = (allZeros == 1) ? 0x00000000 : 0xFFFFFFFF; // Pattern - either all zeros or all ones
+	uint32_t actual = 0x0;
+
+	// Signal it is ready to receive data from client
+	bootstrap_TxAck();
+
+	// Read instructions from request into instructions
+	int num_bytes = bootstrap_RxData((uint8_t*)&timeout, 1, sizeof timeout); // Read the timeout time
+	
+	if(num_bytes != 4) {
+		bootstrap_TxAckData("Failed setting the timeout time", 32);
+	} 
+
+	// Populate the memory - All Onex
+	uint32_t memoryAddr = (uint32_t) LAN966X_DDR_BASE;
+	asm volatile (
+		"MOV r1, #0;"          // Max value for the address - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r1, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
+
+		"FADELOOP1:"
+		"STR %[_pattern], [%[memAddr]], #4;"
+		"CMP %[memAddr], r1;"
+		"IT NE;"
+		"BNE FADELOOP1;"
+	: [memAddr] "+&r" (memoryAddr)
+    : "r" (memoryAddr), [_pattern] "r" (pattern)
+	: "r1"); // Clobbered registers
+
+	mdelay(timeout); // Wait for bits to fade
+	memoryAddr = (uint32_t) LAN966X_DDR_BASE; // Reset Base Address
+
+	asm volatile (
+		"MOV r1, #0;"          // Max value for the address - Has to use Mov and Movt since imm is only 16 bits.
+		"MOVT r1, #0x8000;"    // Write 16 last bits - set bit 31 (DDR mem goes from 0x60000000 to 0x80000000)
+
+		"FADELOOP2:"
+		"LDR %[_actual], [%[memAddr]], #4;"
+		"CMP %[_actual], %[_pattern];"
+		"IT NE;"
+		"BNE ENDFADETEST;"
+		"CMP %[memAddr], r1;"
+		"IT NE;"
+		"BNE FADELOOP2;"
+
+		"MOV %[resultOutput], #1;"
+		"ENDFADETEST:"
+	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_actual] "+&r" (actual)
+    : "r" (memoryAddr), [_pattern] "r" (pattern)
+	: "r1"); // Clobbered registers
+
+
+	if(result == 0x1) {
+		bootstrap_TxAckData("Bit Fade Test Succeded", 23);
+		return;
+	} 
+
+	char addressStr[9]; 
+	char expectedStr[9]; 
+	char actualStr[9]; 
+	int_to_hex_string(memoryAddr-0x4, addressStr, 8);
+	int_to_hex_string(pattern, expectedStr, 8); 
+	int_to_hex_string(actual, actualStr, 8);
+
+	char resultStr[84] = "Bit Fade Test Failed at Address: 0x"; // Size = 59 . chars for text[67] + 8*3 for address and values + 1 null character
+	strlcat(resultStr, addressStr, 84);
+	strlcat(resultStr, ". Expected 0x", 84);	
+	strlcat(resultStr, expectedStr, 84);
+	strlcat(resultStr, " but got 0x", 84);	
+	strlcat(resultStr, actualStr, 84);
+
+
+	bootstrap_TxAckData(resultStr, 84);
+}
+
 static void handle_databusTest(bootstrap_req_t *req) {
 	uint8_t result    = 0; // Flag for result - Only set to true just before exiting the test, and only if all loops have been finished
 	uint32_t expected = 0;
@@ -706,7 +796,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	// Read instructions from request into instructions
 	num_bytes = bootstrap_RxData((uint8_t*)instructions, 1, sizeof instructions); // Read the request - 256 bytes
 
-	udelay(10000); // Small delay - if answer comes too fast, it might crash..
+	mdelay(500); // Small delay - if answer comes too fast, it might crash..
 
 	if(num_bytes != (sizeof instructions)) {
 		bootstrap_TxAckData("Failed uploading program", 25);
@@ -916,6 +1006,7 @@ static void handle_setup_ddr_memory_configuration(bootstrap_req_t *req) {
 	current_ddr_config = (struct ddr_config*) data;
 	ddr_init(current_ddr_config);
 
+	mdelay(100); // Small delay - ensures GUI tool is ready to receive answer
 	bootstrap_TxAckData("Successfully Uploaded Configuration", 36);
 }
 
@@ -1349,11 +1440,15 @@ void lan966x_bl2u_bootstrap_monitor(void)
 			handle_memoryTest_addr(&req, 1);
 		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_HAMMER))
 			handle_memoryTest_Hammer(&req); 
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_BITFADE))
+			handle_memoryTest_BitFade(&req, 0);
+		else if(is_cmd(&req, BOOTSTRAP_MEMORYTEST_BITFADE_ALLZEROS))
+			handle_memoryTest_BitFade(&req, 1);
 		else if(is_cmd(&req, BOOTSTRAP_CUSTOM_PATTERN))
 			handle_custom_pattern(&req);
 		else
 			bootstrap_TxNack("Unknown command");
-	}
+	} 
 
 	INFO("*** EXITING BL2U BOOTSTRAP MONITOR ***\n");
 	lan966x_set_max_trace_level();

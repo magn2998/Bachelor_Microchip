@@ -441,6 +441,18 @@
 			</td>
 			</tr>
 			<tr>
+			<td><button style="width:100%" type="button" id="memorytest_chip_bitfade">Bit Fade</button></td>
+			<td><input class="memory_test_input" value="1" id="memorytest_bitfade_reps" placeholder="repititions"/></td>
+			<td>
+				<input style="width:70px;margin-left:5px;" class="memory_test_input" value="60" id="memorytest_bitfade_timeout" placeholder="Timeout (s)"/>
+			</td>
+			<td>
+				<input type="checkbox" id="memorytest_chip_bitfade_allZeros" name="bitfade_allZeros">
+				<label for="bitfade_allZeros">All Zeros</label>
+			</td>
+			</tr>
+
+			<tr>
 			<td><button style="width:100%" type="button" id="memorytest_chip_walkingOnes">Walking Ones</button></td>
 			<td><input  class="memory_test_input" value="1" id="memorytest_ones_reps" placeholder="repititions"/></td>
 			<td>
@@ -465,6 +477,7 @@
 			<td><button style="width:100%" type="button" id="memorytest_chip_hammer">Hammer Test</button></td>
 			<td><input  class="memory_test_input" value="1" id="memorytest_hammer_reps" placeholder="repititions"/></td>
 			</tr>
+
 		</table>
     </div>
 
