@@ -1,5 +1,5 @@
 let opands = {// id  type
-    "restart":   [0,  1],
+    "stop":      [0,  1],
     "repeat":    [1,  2],
     "end":       [2,  1],
     "store":     [3,  3],
@@ -25,9 +25,7 @@ let opands = {// id  type
     "mul":       [23, 5],
     "muli":      [24, 6],
     "negate":    [25, 3],
-    "loop":      [26,  1],
-    "repeatequals": [27,  3],
-    "stop":         [28,  1]
+    "repeatequals": [26,  3]
 };
 
 // Registers = m (maxAddress - constant), p (pattern), n (address), r1 - r5 (Temp registers)

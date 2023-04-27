@@ -596,7 +596,7 @@ static void handle_memoryTest_BitFade(bootstrap_req_t *req, uint8_t allZeros) {
 		"BNE FADELOOP1;"
 	: [memAddr] "+&r" (memoryAddr)
     : "r" (memoryAddr), [_pattern] "r" (pattern)
-	: "r1"); // Clobbered registers
+	: "r1"); // Clobbered Registers
 
 	mdelay(timeout); // Wait for bits to fade
 	memoryAddr = (uint32_t) LAN966X_DDR_BASE; // Reset Base Address
@@ -618,7 +618,7 @@ static void handle_memoryTest_BitFade(bootstrap_req_t *req, uint8_t allZeros) {
 		"ENDFADETEST:"
 	: [memAddr] "+&r" (memoryAddr), [resultOutput] "=r" (result), [_actual] "+&r" (actual)
     : "r" (memoryAddr), [_pattern] "r" (pattern)
-	: "r1"); // Clobbered registers
+	: "r1"); // Clobbered Registers
 
 
 	if(result == 0x1) {
@@ -815,16 +815,16 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 	repeatStack.compareType = 0;
 
 	// Register order: m, p, n, r1-r5
-	volatile uint32_t variables[8] = {0};
-		     variables[0] = LAN966X_DDR_BASE+LAN966X_DDR_SIZE;
-		     variables[2] = LAN966X_DDR_BASE;
+	volatile uint32_t registers[8] = {0};
+		     registers[0] = LAN966X_DDR_BASE+LAN966X_DDR_SIZE;
+		     registers[2] = LAN966X_DDR_BASE;
 	volatile uint8_t PC = 0; // Max 256 instructions
 	volatile uint64_t protection = 0x1000000000; // Max repetitions - Alot
-	volatile uint32_t loopBegin = 0; // Where the program should return to when the end is reached
 	volatile uint32_t* memPointer; // Pointer used to undex DDR memory
 
 
-	while(protection > 0) {
+	volatile uint8_t run = 1;
+	while(run) {
 		
 		volatile uint8_t  ope = (instructions[PC]      ) & 0x3F;   // 111111b
 		volatile uint8_t  rd  = (instructions[PC] >> 6 ) & 0x7;    // 111b  
@@ -835,9 +835,6 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 		PC++; // Update PC - not used until next repeat and might change in 
 
 		switch(ope) {
-			case BOOTSTRAP_INTERP_RESTART: // If the end of program is reached, repeat
-				PC = loopBegin;
-				break;
 			case BOOTSTRAP_INTERP_REPEAT:
 				repeatStack.pointer++;
 				repeatStack.compareType = (repeatStack.compareType & ~(1 << (repeatStack.pointer-1)));
@@ -846,7 +843,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 				break;
 			case BOOTSTRAP_INTERP_REPEATEQUALS:
 				repeatStack.pointer++;
-				// Set binary indicator that is should compare registers
+				// Set binary indicator that is should compare Registers
 				repeatStack.compareType = (repeatStack.compareType | (1 << (repeatStack.pointer-1)));
 				repeatStack.counter[repeatStack.pointer-1] = 0 | (rd << 0x3) | (r1);
 				repeatStack.location[repeatStack.pointer-1] = PC;
@@ -855,7 +852,7 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 				rd = (repeatStack.compareType & (1 << (repeatStack.pointer-1)));
 				r1 = repeatStack.counter[repeatStack.pointer-1]        & 0x7;
 				r2 = (repeatStack.counter[repeatStack.pointer-1] >> 3) & 0x7;
-				if((rd == 0 && repeatStack.counter[repeatStack.pointer-1] <= 0) || (rd > 0 && variables[r1] == variables[r2])) {
+				if((rd == 0 && repeatStack.counter[repeatStack.pointer-1] <= 0) || (rd > 0 && registers[r1] == registers[r2])) {
 					repeatStack.pointer--;
 				} else {
 					PC = repeatStack.location[repeatStack.pointer-1];
@@ -864,35 +861,32 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 					}
 				}
 				break;
-			case BOOTSTRAP_INTERP_LOOP:
-				loopBegin = imm;
-				break;
 			case BOOTSTRAP_INTERP_STORE:
-				if(variables[rd] < LAN966X_DDR_BASE || variables[rd] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
+				if(registers[rd] < LAN966X_DDR_BASE || registers[rd] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
 					// Catastrophic error
-					bootstrap_TxAckData("Catastrophic error", 19);
+					bootstrap_TxAckData("Catastrophic error - tried to write to an address outside the DDR ram.", 71);
 					return;
 				}
-				memPointer  = (uint32_t*) variables[rd];
-				*memPointer = variables[r1];
+				memPointer  = (uint32_t*) registers[rd];
+				*memPointer = registers[r1];
 				break;
 			case BOOTSTRAP_INTERP_LOAD:
-				if(variables[r1] < LAN966X_DDR_BASE || variables[r1] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
+				if(registers[r1] < LAN966X_DDR_BASE || registers[r1] >= (LAN966X_DDR_BASE+LAN966X_DDR_SIZE)) {
 					// Catastrophic error
-					bootstrap_TxAckData("Catastrophic error", 19);
+					bootstrap_TxAckData("Catastrophic error - tried to write to an address outside the DDR ram.", 71);
 					return;
 				}
-				memPointer   = (uint32_t*) variables[r1];
-				variables[rd] = *memPointer;
+				memPointer   = (uint32_t*) registers[r1];
+				registers[rd] = *memPointer;
 				break;
 			case BOOTSTRAP_INTERP_CMP:
-				if(variables[rd] != variables[r1]) {
+				if(registers[rd] != registers[r1]) {
 					// Reply Structure - Comparison didn't match. Failed at instruction 0xxx. Expected 0xxxxxxxxx but got 0xxxxxxxxx
 					char pcStr[3]; 
 					char expectedStr[9]; 
 					char received[9]; 
-					int_to_hex_string(variables[rd], expectedStr, 8);
-					int_to_hex_string(variables[r1], received, 8); 
+					int_to_hex_string(registers[rd], expectedStr, 8);
+					int_to_hex_string(registers[r1], received, 8); 
 					int_to_hex_string(PC-1, pcStr, 2);
 
 					char failedStr[92] = "Comparison didn't match. Failed at instruction 0x";
@@ -909,76 +903,82 @@ static void handle_custom_pattern(bootstrap_req_t *req) {
 
 				break;
 			case BOOTSTRAP_INTERP_MOV:
-			    variables[rd] = variables[r1];
+			    registers[rd] = registers[r1];
 				break;
 			case BOOTSTRAP_INTERP_MOVI:
-			    variables[rd] = imm;
+			    registers[rd] = imm;
 				break;
 			case BOOTSTRAP_INTERP_MOVETOP:
-			    variables[rd] = (imm << 16) | (variables[rd] & 0xFFFF);
+			    registers[rd] = (imm << 16) | (registers[rd] & 0xFFFF);
 				break;
 			case BOOTSTRAP_INTERP_ADD:
-			    variables[rd] = variables[r1] + variables[r2];
+			    registers[rd] = registers[r1] + registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_ADDI:
-			    variables[rd] = variables[r1] + imm;
+			    registers[rd] = registers[r1] + imm;
 				break;
 			case BOOTSTRAP_INTERP_SUB:
-				variables[rd] = variables[r1] - variables[r2];
+				registers[rd] = registers[r1] - registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_SUBI:
-			    variables[rd] = variables[r1] - imm;
+			    registers[rd] = registers[r1] - imm;
 				break;
 			case BOOTSTRAP_INTERP_AND:
-			    variables[rd] = variables[r1] & variables[r2];
+			    registers[rd] = registers[r1] & registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_ANDI:
-			    variables[rd] = variables[r1] & imm;
+			    registers[rd] = registers[r1] & imm;
 				break;
 			case BOOTSTRAP_INTERP_OR:
-			    variables[rd] = variables[r1] | variables[r2];
+			    registers[rd] = registers[r1] | registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_ORI:
-			    variables[rd] = variables[r1] | imm;
+			    registers[rd] = registers[r1] | imm;
 				break;
 			case BOOTSTRAP_INTERP_XOR:
-			    variables[rd] = variables[r1] ^ variables[r2];
+			    registers[rd] = registers[r1] ^ registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_XORI:
-			    variables[rd] = variables[r1] ^ imm;
+			    registers[rd] = registers[r1] ^ imm;
 				break;
 			case BOOTSTRAP_INTERP_LSL:
-			    variables[rd] = variables[r1] << variables[r2];
+			    registers[rd] = registers[r1] << registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_LSLI:
-			    variables[rd] = variables[r1] << imm;
+			    registers[rd] = registers[r1] << imm;
 				break;
 			case BOOTSTRAP_INTERP_LSR:
-			    variables[rd] = variables[r1] >> variables[r2];
+			    registers[rd] = registers[r1] >> registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_LSRI:
-			    variables[rd] = variables[r1] >> imm;
+			    registers[rd] = registers[r1] >> imm;
 				break;
 			case BOOTSTRAP_INTERP_MUL:
-			    variables[rd] = variables[r1] * variables[r2];
+			    registers[rd] = registers[r1] * registers[r2];
 				break;
 			case BOOTSTRAP_INTERP_MULI:
-				variables[rd] = variables[r1] * imm;
+				registers[rd] = registers[r1] * imm;
 				break;
 			case BOOTSTRAP_INTERP_NEGATE:
-				variables[rd] = ~variables[r1];
+				registers[rd] = ~registers[r1];
 				break;
 			case BOOTSTRAP_INTERP_STOP:
-				protection = 1; // Stop exeuction by setting protection to 0 (It is reduced by one outside the switch)
+				run = 0; // Stop exeuction 
 				break;
 			default:
 				return;
 		}
 		protection--;
+		if(protection == 0 || PC >= 64) {
+			break; 
+		}
 	}
 
-	PC = PC;
-	bootstrap_TxAckData("Done Running Custom Pattern", 28);
+	if(run == 0) {
+		bootstrap_TxAckData("Done Running Custom Pattern - Found no errors", 46);
+	} else {
+		bootstrap_TxAckData("Test Timed Out", 15);
+	}
 }
 
 

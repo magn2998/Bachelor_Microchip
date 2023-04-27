@@ -1,9 +1,20 @@
 import sys,os
 import lan966x
 import random
+import re
 
 from arm_ds.debugger_v1 import Debugger
 from arm_ds.debugger_v1 import DebugException
+
+def GetLabelAddress(label_name, file_path):
+    with open(file_path, 'r') as f:
+        for line in f:
+            match = re.search(r'^([0-9a-fA-F]+)\s+<' + label_name + '>:', line)
+            if match:
+                addr = match.group(1)
+                addr_int = int(addr, 16)
+                return addr_int
+    return None
 
 debugger = Debugger()
 ctx = debugger.getCurrentExecutionContext()
@@ -21,14 +32,21 @@ buildSrc = "build/lan966x_b0/debug"
 # Load ELF of BL2U
 lan966x.reload_symbols(debugger, buildSrc + "/bl2u/bl2u.elf")
 
-endOfRndTest = debugger.setHardwareAddressBreakpoint(0x00102AAA).getId()
-endOfRndPopulate = debugger.setHardwareAddressBreakpoint(0x00102A44).getId()
+startInstr = GetLabelAddress("RNDLOOP1",  buildSrc + "/bl2u/bl2u.dump") - 16
+populateInstr = GetLabelAddress("RNDLOOP2",  buildSrc + "/bl2u/bl2u.dump") - 2
+endInstr = GetLabelAddress("ENDRNDTEST",  buildSrc + "/bl2u/bl2u.dump")
+memoryReg = "r0"
+randomReg = "r6"
+statusFlagReg = "r7"
+
+endOfRndTest = debugger.setHardwareAddressBreakpoint(endInstr).getId()
+endOfRndPopulate = debugger.setHardwareAddressBreakpoint(populateInstr).getId()
 
 
 def EndOfRandomTestCallBack(expectedAddr, shouldFail):
     # Code to be executed when the breakpoint is hit
-    hasFoundError = debugger.readRegister("r7")
-    failedMemAddress = debugger.readRegister("r0") - 4
+    hasFoundError = debugger.readRegister(statusFlagReg)
+    failedMemAddress = debugger.readRegister(memoryReg) - 4
     
     if (hasFoundError == 2 and not shouldFail):
         print("Found No Error as expected.")
@@ -82,10 +100,10 @@ while(True):
     if hitBreakId == endOfRndTest:
         if not EndOfRandomTestCallBack(failAtAddress, expectError):
             break 
-        debugger.writeRegister("r0", 0x60000000) # Reset Memory Address
-        debugger.writeRegister("r6", random.randint(0x000000, 0xffffff)) # Choose new seed
-        debugger.writeRegister("r7", 0) # Reset Status Flag
-        execution_service.setExecutionAddress(0x00102A20) # Return to first address
+        debugger.writeRegister(memoryReg, 0x60000000) # Reset Memory Address
+        debugger.writeRegister(randomReg, random.randint(0x000000, 0xffffff)) # Choose new seed
+        debugger.writeRegister(statusFlagReg, 0) # Reset Status Flag
+        execution_service.setExecutionAddress(startInstr) # Return to first address
     if hitBreakId == endOfRndPopulate:
         failAtAddress, expectError = RandonTestPopulationDone()
 
