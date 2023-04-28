@@ -1,4 +1,4 @@
-let opands = {// id  type
+var opands = {// id  type
     "stop":      [0,  1],
     "repeat":    [1,  2],
     "end":       [2,  1],
@@ -29,7 +29,7 @@ let opands = {// id  type
 };
 
 // Registers = m (maxAddress - constant), p (pattern), n (address), r1 - r5 (Temp registers)
-let registerLookup = {
+var registerLookup = {
     "max": 0,
     "m":   0,
     "p":  1,
@@ -51,17 +51,27 @@ types:
     6. cmd + rd + r1 + imm (e.g. 'addi')
 */
 
-function assemble_program(str) {        // Replace Comments and semicolons
-    let prog = str.toLowerCase().replace(/\/\/.*\n|:/g, '\n').split(/ *\n+ */g).filter((e)=>(e.indexOf('start') === -1 && e != '')).map((e)=>e.split(/[, ]+/g));
-    let instructions = new Array(64).fill(0);
+function assemble_program(str) {        
+    var prog = str.toLowerCase() 
+                  .replace(/\/\/.*|:/g, '\n') // Replace Comments and semicolons and format text
+                  .split(/ *\n+ */g)
+                  .filter(function(e){
+                    return e.indexOf('start') === -1 && e != '';
+                  }).map(function(e){
+                    return e.split(/[, ]+/g);
+                  });
+    var instructions = [];
+    for(var i = 0; i < 64; i++) {
+        instructions.push(0); // Initiate the instruction array
+    }
 
     if(prog.length > 64) {
         throw "Program too large! Must be a maximum of 64 instructions";
     }
 
-    for(let i = 0; i < prog.length; i++) {
-        let cmd = prog[i];
-        let operand = opands[cmd[0]];
+    for(var i = 0; i < prog.length; i++) {
+        var cmd = prog[i];
+        var operand = opands[cmd[0]];
         if(operand === undefined) 
             throw "Command " + cmd + " doesn't exist."
 
@@ -109,7 +119,7 @@ function assemble_command_2(cmd, operand) {
         throw "command '" + cmd + "' is formatted wrongly";
     if(cmd[1][0] !== "#")
         throw "command '" + cmd + "' expects a value beginning with '#'";
-    let parsedVal = parseInt(cmd[1].substring(1));
+    var parsedVal = parseInt(cmd[1].substring(1));
     if(parsedVal === NaN)
         throw "command '" + cmd + "' has wrongly formatted value";
     return operand[0] | (parsedVal << 15);
@@ -119,8 +129,8 @@ function assemble_command_2(cmd, operand) {
 function assemble_command_3(cmd, operand) { 
     if(cmd.length !== 3)
         throw "command '" + cmd + "' is formatted wrongly";
-    let rd = registerLookup[cmd[1]];
-    let r1 = registerLookup[cmd[2]];
+    var rd = registerLookup[cmd[1]];
+    var r1 = registerLookup[cmd[2]];
 
     if(rd === undefined || r1 === undefined) {
         throw "Registers for " + cmd + " not available."
@@ -133,7 +143,7 @@ function assemble_command_3(cmd, operand) {
 function assemble_command_4(cmd, operand) { 
     if(cmd.length !== 3)
         throw "command '" + cmd + "' is formatted wrongly";
-    let rd = registerLookup[cmd[1]];
+    var rd = registerLookup[cmd[1]];
 
     if(rd === undefined) {
         throw "Registers for " + cmd + " not available."
@@ -141,7 +151,7 @@ function assemble_command_4(cmd, operand) {
 
     if(cmd[2][0] !== "#")
         throw "command '" + cmd + "' expects a value beginning with '#'";
-    let parsedVal = parseInt(cmd[2].substring(1));
+    var parsedVal = parseInt(cmd[2].substring(1));
     if(parsedVal === NaN)
         throw "command '" + cmd + "' has wrongly formatted value";
 
@@ -152,9 +162,9 @@ function assemble_command_4(cmd, operand) {
 function assemble_command_5(cmd, operand) { 
     if(cmd.length !== 4)
         throw "command '" + cmd + "' is formatted wrongly";
-    let rd = registerLookup[cmd[1]];
-    let r1 = registerLookup[cmd[2]];
-    let r2 = registerLookup[cmd[3]];
+    var rd = registerLookup[cmd[1]];
+    var r1 = registerLookup[cmd[2]];
+    var r2 = registerLookup[cmd[3]];
 
     if(rd === undefined || r1 === undefined || r2 === undefined) {
         throw "Registers for " + cmd + " not available."
@@ -167,8 +177,8 @@ function assemble_command_5(cmd, operand) {
 function assemble_command_6(cmd, operand) { 
     if(cmd.length !== 4)
         throw "command '" + cmd + "' is formatted wrongly";
-    let rd = registerLookup[cmd[1]];
-    let r1 = registerLookup[cmd[2]];
+    var rd = registerLookup[cmd[1]];
+    var r1 = registerLookup[cmd[2]];
 
     if(rd === undefined || r1 === undefined) {
         throw "Registers for " + cmd + " not available."
@@ -176,9 +186,10 @@ function assemble_command_6(cmd, operand) {
 
     if(cmd[3][0] !== "#")
         throw "command '" + cmd + "' expects a value beginning with '#'";
-    let parsedVal = parseInt(cmd[3].substring(1));
+    var parsedVal = parseInt(cmd[3].substring(1));
     if(isNaN(parsedVal))
         throw "command '" + cmd + "' has wrongly formatted value";
 
     return operand[0] | ((rd & 0x7) << 6) | ((r1 & 0x7) << 9) | (parsedVal << 15);
 }
+

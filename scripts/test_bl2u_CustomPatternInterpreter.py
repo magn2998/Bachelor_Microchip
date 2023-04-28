@@ -1,7 +1,10 @@
 import sys,os
 import lan966x
 import random
-import js2py
+
+import javax.script.ScriptEngineManager
+import java.nio.file.Files as Files
+import java.nio.file.Paths as Paths
 
 from arm_ds.debugger_v1 import Debugger
 from arm_ds.debugger_v1 import DebugException
@@ -46,31 +49,38 @@ BOOTSTRAP_INTERP_NEGATE = 25
 BOOTSTRAP_INTERP_CMP = 5
 
 # Setup variables used to confirm
-operand = 0
-rd = 0
-r1 = 0
-r2 = 0
-imm = 0
-iType = 0
+operand = (0, '')
+rd = (0, '')
+r1 = (0, '')
+r2 = (0, '')
+imm = (0, '')
+iType = (0, '')
 
 commandStr = ""
 
 # Setup where to put the values in memory
-operandAddr = 0x0010E02C
-r1Addr = 0x0010E02E
-r2Addr = 0x0010E02F
-immAddr = 0x0010E034
-rdAddr = 0x0010E02D #rd is actually r5
-# Where their values are stored in memory
-r1ValAddr = 0x0010E04C
-r2ValAddr = 0x0010E050
-rdValAddr = 0x0010E05C
+instrAddr = 0x0010E0A4 
+PcAddr =    0x0010E02E
 
+operandAddr = 0x0010E030
+rdAddr = 0x0010E031
+r1Addr = 0x0010E032
+r2Addr = 0x0010E033
+immAddr = 0x0010E034
+
+
+# Where to set breakpoints - before and after reading instruction
+BeforeReading = 0x00102102
+AfterReading = 0x0010214E
+
+BeforeReadingBreakpoint = debugger.setHardwareAddressBreakpoint(BeforeReading).getId()
+AfterReadingBreakpoint  = debugger.setHardwareAddressBreakpoint(AfterReading).getId()
 
 def GetRandomRegister():
     return random.choice([(0,"m"), (1,"p"), (2,"n"), (3,"r1"), (4,"r2"), (5,"r3"), (6,"r4"), (7,"r5")]) 
 def GetRandomImm():
-    return "#"+hex(random.randint(0x0, 0xFFFF))
+    immVal = random.randint(0x0, 0xFFFF)
+    return (immVal, "#"+hex(immVal))
 
 def TestMOV():
     global operand, rd, r1, r2, imm, iType
@@ -80,7 +90,7 @@ def TestMOV():
     r1 = GetRandomRegister()
     commandStr = "MOV "+rd[1]+" "+r1[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestMOVI():
     global operand, rd, r1, r2, imm, iType
@@ -90,7 +100,7 @@ def TestMOVI():
     imm = GetRandomImm()
     commandStr = "MOVI "+rd[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestMOVETOP():
     global operand, rd, r1, r2, imm, iType
@@ -100,7 +110,7 @@ def TestMOVETOP():
     imm = GetRandomImm()
     commandStr = "MOVETOP "+rd[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestADD():
     global operand, rd, r1, r2, imm, iType
@@ -111,7 +121,7 @@ def TestADD():
     r2 = GetRandomRegister()
     commandStr = "ADD "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestADDI():
     global operand, rd, r1, r2, imm, iType
@@ -122,17 +132,18 @@ def TestADDI():
     imm = GetRandomImm()
     commandStr = "ADDI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestSUB():
     global operand, rd, r1, r2, imm, iType
+    operand = BOOTSTRAP_INTERP_SUB
     iType = 5
     rd = GetRandomRegister()
     r1 = GetRandomRegister()
     r2 = GetRandomRegister()
     commandStr = "SUB "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestSUBI():
     global operand, rd, r1, r2, imm, iType
@@ -143,7 +154,7 @@ def TestSUBI():
     imm = GetRandomImm()
     commandStr = "SUBI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestAND():
     global operand, rd, r1, r2, imm, iType
@@ -154,7 +165,7 @@ def TestAND():
     r2 = GetRandomRegister()
     commandStr = "AND "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestANDI():
     global operand, rd, r1, r2, imm, iType
@@ -165,7 +176,7 @@ def TestANDI():
     imm = GetRandomImm()
     commandStr = "ANDI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestOR():
     global operand, rd, r1, r2, imm, iType
@@ -176,7 +187,7 @@ def TestOR():
     r2 = GetRandomRegister()
     commandStr = "OR "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestORI():
     global operand, rd, r1, r2, imm, iType
@@ -187,7 +198,7 @@ def TestORI():
     imm = GetRandomImm()
     commandStr = "ORI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestXOR():
     global operand, rd, r1, r2, imm, iType
@@ -198,7 +209,7 @@ def TestXOR():
     r2 = GetRandomRegister()
     commandStr = "XOR "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestXORI():
     global operand, rd, r1, r2, imm, iType
@@ -209,7 +220,7 @@ def TestXORI():
     imm = GetRandomImm()
     commandStr = "XORI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestLSL():
     global operand, rd, r1, r2, imm, iType
@@ -220,7 +231,7 @@ def TestLSL():
     r2 = GetRandomRegister()
     commandStr = "LSL "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestLSLI():
     global operand, rd, r1, r2, imm, iType
@@ -231,7 +242,7 @@ def TestLSLI():
     imm = GetRandomImm()
     commandStr = "LSLI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestLSR():
     global operand, rd, r1, r2, imm, iType
@@ -242,7 +253,7 @@ def TestLSR():
     r2 = GetRandomRegister()
     commandStr = "LSR "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestLSRI():
     global operand, rd, r1, r2, imm, iType
@@ -253,7 +264,7 @@ def TestLSRI():
     imm = GetRandomImm()
     commandStr = "LSRI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestMUL():
     global operand, rd, r1, r2, imm, iType
@@ -264,7 +275,7 @@ def TestMUL():
     r2 = GetRandomRegister()
     commandStr = "MUL "+rd[1]+" "+r1[1]+" "+r2[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestMULI():
     global operand, rd, r1, r2, imm, iType
@@ -275,7 +286,7 @@ def TestMULI():
     imm = GetRandomImm()
     commandStr = "MULI "+rd[1]+" "+r1[1]+" "+imm[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestNEGATE():
     global operand, rd, r1, r2, imm, iType
@@ -285,7 +296,7 @@ def TestNEGATE():
     r1 = GetRandomRegister()
     commandStr = "NEGATE "+rd[1]+" "+r1[1]
     print("Testing " + commandStr)
-    return False
+    return commandStr
 
 def TestCompare():
     global operand, rd, r1, r2, imm, iType
@@ -295,63 +306,79 @@ def TestCompare():
     r1 = GetRandomRegister()
     commandStr = "CMP "+rd[1]+" "+r1[1]
     print("Testing " + commandStr)
-    return True
+    return commandStr
 
 operations = [TestMOV, TestMOVI, TestMOVETOP, TestADD, TestADDI, TestSUB, TestSUBI, TestAND, TestANDI, TestOR, TestORI, TestXOR, TestXORI, TestLSL, TestLSLI, TestLSR, TestLSRI, TestMUL, TestMULI, TestNEGATE, TestCompare];
 
+
 def SetUpOperation():
+    operation = random.choice(operations)
+    instr = AssembleInstruction(operation())
+    print("Instruction Value: "+hex(instr))
     # Set Instruction of 0 to command and set PC to 0
-    return True
+    debugger.writeMemoryValue(instrAddr, instr, 32)
+    debugger.writeMemoryValue(PcAddr, 0x0, 8)
+    
 
 def AfterOperation():
     # Read Different Stuff
-    readOperand = debugger.readMemoryValue(operandAddr, 8)
-    readRd = debugger.readMemoryValue(rdAddr, 8)
-    readR1 = debugger.readMemoryValue(r1Addr, 8)
-    readR2 = debugger.readMemoryValue(r2Addr, 8)
-    readImm = debugger.readMemoryValue(immAddr, 32)
-
-    print(str(readOperand))
-    print(str(readRd))
-    print(str(readR1))
-    print(str(readR2))
-    print(str(readImm))
+    readOperand = int(debugger.readMemoryValue(operandAddr, 8))
+    readRd = int(debugger.readMemoryValue(rdAddr, 8))
+    readR1 = int(debugger.readMemoryValue(r1Addr, 8))
+    readR2 = int(debugger.readMemoryValue(r2Addr, 8))
+    readImm = int(debugger.readMemoryValue(immAddr, 32))
 
     if readOperand != operand:
         print("OPERAND IS WRONG")
         return False
 
     if iType == 3:
-        if(rd == readRd and r1 == readR1):
+        if(rd[0] == readRd and r1[0] == readR1):
+            print("Success! Correctly read out operand="+str(operand)+" and rd="+str(rd[1]))
             return True
         else:
+            print("!!!FAILED!!! Incorrectly read out operand="+str(operand)+" and rd="+str(rd[1]))
             return False
     elif iType == 4:
-        if(rd == readRd and imm == readImm):
+        if(rd[0] == readRd and imm[0] == readImm):
+            print("Success! Correctly read out operand="+str(operand)+", rd="+str(rd[1])+" and imm="+str(readImm))
             return True
         else:
+            print("!!!FAILED!!! Incorrectly read out operand="+str(operand)+", rd="+str(rd[1])+" and imm="+str(readImm))
             return False
     elif iType == 5:
-        if(rd == readRd and r1 == readR1 and r2 == readR2):
+        if(rd[0] == readRd and r1[0] == readR1 and r2[0] == readR2):
+            print("Success! Correctly read out operand="+str(operand)+", rd="+str(rd[1])+", r1="+str(r1[1])+" and r2="+str(r2[1]))
             return True
         else:
+            print("!!!FAILED!!! Incorrectly read out operand="+str(operand)+", rd="+str(rd[1])+", r1="+str(r1[1])+" and r2="+str(r2[1]))
             return False
     elif iType == 6:
-        if(rd == readRd and r1 == readR1 and imm == readImm):
+        if(rd[0] == readRd and r1[0] == readR1 and imm[0] == readImm):
+            print("Success! Correctly read out operand="+str(operand)+", rd="+str(rd[1])+", r1="+str(r1[1])+" and imm="+str(readImm))
             return True
         else:
+            print("!!!FAILED!!! Incorrectly read out operand="+str(operand)+", rd="+str(rd[1])+", r1="+str(r1[1])+" and imm="+str(readImm))
             return False
 
 
+script_file = "//wsl.localhost/Ubuntu-18.04/home/magn2998/arm-trusted-firmware/scripts/fwu/ddr-test.js"
+manager = javax.script.ScriptEngineManager()
+engine = manager.getEngineByName("nashorn")
 
+with open(script_file, "r") as file:
+    # Read the JavaScript file
+    script = file.read()
+    # Prepare the engine with the Javascript Functions
+    engine.eval(script)
 
-
-
-StartOfTest = debugger.setHardwareAddressBreakpoint(0x0010017A).getId()
-comparison = debugger.setHardwareAddressBreakpoint(0x0010038A).getId()
+def AssembleInstruction(instrTxt):
+    result = engine.eval("assemble_program('"+instrTxt+"')")
+    return int(result["0"]) # Get Assembled Instruction as an integer
 
 firstExecution = True
 while(True):
+    
     execution_service.waitForStop(0)
     hitBreakPoint = breakpointService.getHitBreakpoint()
 
@@ -360,30 +387,13 @@ while(True):
         continue
 
     hitBreakId = hitBreakPoint.getId()
-    if hitBreakId == StartOfTest:
-        if not firstExecution:
-            if not AfterOperation():
-                print("!!!GOT THE WRONG RESULT!!! expected " + hex(res) + " but got " + hex(result))
-                break
-            else:
-                print("Got the correct result, which was expected")
+    if hitBreakId == BeforeReadingBreakpoint:
         SetUpOperation()
-        firstExecution = False
-    if hitBreakId == comparison:
-        if not expect_compare:
-            print("!!!DID NOT EXPECT A COMPARISON!!!")
+    if hitBreakId == AfterReadingBreakpoint:
+        if not AfterOperation():
             break
-        else:
-            val1 = debugger.readRegister("r0")
-            val2 = debugger.readRegister("r1")
-            isSame = str(val1) == str(val2)
-
-            if isSame != compareResult:
-                print("!!!COMPARE RESULT IS NOT CORRECT!!!")
-                break
-            else:
-                print("Expected the comparison to " + ("succeed" if compareResult else "fail") + " and it did.")
-        execution_service.setExecutionAddress(0x00100178) # Return to start of test
-
+        execution_service.setExecutionAddress(BeforeReading-4) # Return to first address
+   
 
 debugger.removeAllBreakpoints()
+print("Done running Interpreter Testing Script")
