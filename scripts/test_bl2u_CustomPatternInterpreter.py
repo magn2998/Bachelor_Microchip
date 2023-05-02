@@ -47,6 +47,8 @@ BOOTSTRAP_INTERP_MUL = 23
 BOOTSTRAP_INTERP_MULI = 24
 BOOTSTRAP_INTERP_NEGATE = 25
 BOOTSTRAP_INTERP_CMP = 5
+BOOTSTRAP_INTERP_STORE = 3
+BOOTSTRAP_INTERP_LOAD = 4
 
 # Setup variables used to confirm
 operand = (0, '')
@@ -308,7 +310,27 @@ def TestCompare():
     print("Testing " + commandStr)
     return commandStr
 
-operations = [TestMOV, TestMOVI, TestMOVETOP, TestADD, TestADDI, TestSUB, TestSUBI, TestAND, TestANDI, TestOR, TestORI, TestXOR, TestXORI, TestLSL, TestLSLI, TestLSR, TestLSRI, TestMUL, TestMULI, TestNEGATE, TestCompare];
+def TestStore():
+    global operand, rd, r1, r2, imm, iType
+    operand = BOOTSTRAP_INTERP_STORE
+    iType = 3
+    rd = GetRandomRegister()
+    r1 = GetRandomRegister()
+    commandStr = "STORE "+rd[1]+" "+r1[1]
+    print("Testing " + commandStr)
+    return commandStr
+
+def TestLoad():
+    global operand, rd, r1, r2, imm, iType
+    operand = BOOTSTRAP_INTERP_LOAD
+    iType = 3
+    rd = GetRandomRegister()
+    r1 = GetRandomRegister()
+    commandStr = "LOAD "+rd[1]+" "+r1[1]
+    print("Testing " + commandStr)
+    return commandStr
+
+operations = [TestStore, TestLoad, TestMOV, TestMOVI, TestMOVETOP, TestADD, TestADDI, TestSUB, TestSUBI, TestAND, TestANDI, TestOR, TestORI, TestXOR, TestXORI, TestLSL, TestLSLI, TestLSR, TestLSRI, TestMUL, TestMULI, TestNEGATE, TestCompare];
 
 
 def SetUpOperation():

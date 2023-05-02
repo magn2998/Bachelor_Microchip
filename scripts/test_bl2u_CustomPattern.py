@@ -43,6 +43,8 @@ BOOTSTRAP_INTERP_MUL = 23
 BOOTSTRAP_INTERP_MULI = 24
 BOOTSTRAP_INTERP_NEGATE = 25
 BOOTSTRAP_INTERP_CMP = 5
+BOOTSTRAP_INTERP_STORE = 3
+BOOTSTRAP_INTERP_LOAD = 4
 
 # Setup variables used to confirm
 operand = 0
@@ -51,6 +53,7 @@ r2 = 0
 imm = 0
 res = 0
 result = 0 # This is what is read, and res is what is expected
+ddrMemAddr = 0
 
 # Setup where to put the values in memory
 operandAddr = 0x0010E030
@@ -73,6 +76,25 @@ compareResult = False
 # Instruction Addresses
 InstrAddrSwitch = 0x0010214E
 CMPAddr         = 0x0010234E
+
+def TestSTR():
+    global operand, r1, r2, imm, res, ddrMemAddr
+    operand = BOOTSTRAP_INTERP_STORE
+    ddrMemAddr = random.randint(0x60000000 >> 2, 0x7ffffffc >> 2) << 2
+    r1 = random.randint(0x0, 0xFFFFFFFF)
+    res = r1
+    print("Testing Store - Stores " + hex(r1) + " into memory location " + hex(ddrMemAddr))
+    return False
+
+def TestLDR():
+    global operand, r1, r2, imm, res
+    operand = BOOTSTRAP_INTERP_LOAD
+    val = random.randint(0x0, 0xFFFFFFFF)
+    r1 = random.randint(0x60000000 >> 2, 0x7ffffffc >> 2) << 2
+    res = val
+    debugger.writeMemoryValue(r1, val, 32)
+    print("Testing LDR - Loads " + hex(val) + " from memory location " + hex(r1))
+    return False
 
 def TestMOV():
     global operand, r1, r2, imm, res
@@ -267,15 +289,19 @@ def TestCompare():
     print("Testing Compare! Compares " + hex(r1) + " against " + hex(temp))
     return True
 
-operations = [TestMOV, TestMOVI, TestMOVETOP, TestADD, TestADDI, TestSUB, TestSUBI, TestAND, TestANDI, TestOR, TestORI, TestXOR, TestXORI, TestLSL, TestLSLI, TestLSR, TestLSRI, TestMUL, TestMULI, TestNEGATE, TestCompare];
+operations = [TestSTR, TestLDR, TestMOV, TestMOVI, TestMOVETOP, TestADD, TestADDI, TestSUB, TestSUBI, TestAND, TestANDI, TestOR, TestORI, TestXOR, TestXORI, TestLSL, TestLSLI, TestLSR, TestLSRI, TestMUL, TestMULI, TestNEGATE, TestCompare];
 
 def SetUpOperation():
-    global expect_compare
+    global expect_compare, ddrMemAddr
     rnd_operation = random.choice(operations)
     expect_compare = rnd_operation()
     # Set The Correct Values
     debugger.writeMemoryValue(operandAddr, operand, 8)
+    
+    if ddrMemAddr != 0:
+        debugger.writeMemoryValue(rdValAddr, ddrMemAddr, 32)
     debugger.writeMemoryValue(rdAddr, 7, 8)
+    
     debugger.writeMemoryValue(r1Addr, 3, 8)
     debugger.writeMemoryValue(r2Addr, 4, 8)
     debugger.writeMemoryValue(immAddr, imm, 32)
@@ -287,12 +313,19 @@ def SetUpOperation():
     
 
 def AfterOperation():
-    global result
+    global result, ddrMemAddr
     # Read Value of result
     if expect_compare:
         return True
-    result = debugger.readMemoryValue(rdValAddr, 32)
+    
+    if ddrMemAddr != 0:
+        result = debugger.readMemoryValue(ddrMemAddr, 32)
+    else:
+        result = debugger.readMemoryValue(rdValAddr, 32)
+    
+    
     print("Result: Expected " + hex(res) + " and got " + hex(result))
+    ddrMemAddr = 0
     return res == result
 
 

@@ -38,7 +38,7 @@ startInstr = GetLabelAddress("HAMMERPOPULATE",  buildSrc + "/bl2u/bl2u.dump") - 
 populateInstr = GetLabelAddress("HAMMERCHECK",  buildSrc + "/bl2u/bl2u.dump") - 2
 endInstr = GetLabelAddress("ENDHAMMERTEST",  buildSrc + "/bl2u/bl2u.dump")
 memoryReg = "r2"
-statusFlagReg = "r5"
+statusFlagReg = "r1"
 
 print(hex(startInstr))
 print(hex(populateInstr))
