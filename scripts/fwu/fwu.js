@@ -130,13 +130,15 @@ let countdown_times = {
 	wo_cache: {
 		[CMD_MEMORYTEST_DATABUS]:     0.011375,
 		[CMD_MEMORYTEST_ADDRBUS]:     0.01387,
-		[CMD_MEMORYTEST_RND]:         29.3412,
-		[CMD_MEMORYTEST_RND_REV]:     66.7543,
+		[CMD_MEMORYTEST_RND]:         30.5146,
+		[CMD_MEMORYTEST_RND_REV]:     68.6747,
 		[CMD_MEMORYTEST_ONES]:        27.6234,
 		[CMD_MEMORYTEST_ONES_REV]:    65.8197,
 		[CMD_MEMORYTEST_ADDRESS]:     27.5571,
 		[CMD_MEMORYTEST_ADDRESS_REV]: 64.6093,
-		[CMD_MEMORYTEST_HAMMER]:      191.1659
+		[CMD_MEMORYTEST_BITFADE]:           26.1613,
+		[CMD_MEMORYTEST_BITFADE_ALLZEROS]:  26.1646,
+		[CMD_MEMORYTEST_HAMMER]:      147.3978
 	},
 	w_cache: {
 		[CMD_MEMORYTEST_DATABUS]:     0.016384615,
@@ -147,6 +149,8 @@ let countdown_times = {
 		[CMD_MEMORYTEST_ONES_REV]:    6.6339,
 		[CMD_MEMORYTEST_ADDRESS]:     3.8897,
 		[CMD_MEMORYTEST_ADDRESS_REV]: 5.7575,
+		[CMD_MEMORYTEST_BITFADE]:          2.312,
+		[CMD_MEMORYTEST_BITFADE_ALLZEROS]: 2.310,
 		[CMD_MEMORYTEST_BURSTWRITE]:  0.0402
 	}	
 };
@@ -968,9 +972,9 @@ function startSerial()
   		let reqArg = format_uint32_to_reqString(timeoutT*1000); // Convert the time from seconds to milliseconds
   		console.log(reqArg);
   		if(document.getElementById("memorytest_chip_bitfade_allZeros").checked) {
-  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE_ALLZEROS, "Bit Fade Test with all zeros (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg);
+  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE_ALLZEROS, "Bit Fade Test with all zeros (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg, timeoutT);
   		} else {
-  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE, "Bit Fade Test with all ones (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg);
+  			await execute_memoryTest(CMD_MEMORYTEST_BITFADE, "Bit Fade Test with all ones (Timeout: "+timeoutRaw+" seconds)", chipFadeReps, reqArg, timeoutT);
   		}
     });
 	
@@ -1017,18 +1021,20 @@ function startSerial()
     
 
     
-    async function execute_memoryTest(TESTID, TESTNAME, REPS, argument) {
+    async function execute_memoryTest(TESTID, TESTNAME, REPS, argument, extraTime) {
 		let s = disableButtons("bl2u", true);
 		let counter;
 		let repetitionText;
 		let timeRepBefore, diffMs, diffMins, diffSecs
 
+		extraTime = (typeof extraTime === "number") ? extraTime : 0; // If the extra time is not given, simply add zero. Used for BitFade
+
 		// Start countdown timer
 		Countdown_Prepare();
 		if(document.getElementById("toggleCache").checked) {
-			Countdown_Start(countdown_times.w_cache[TESTID]*REPS);
+			Countdown_Start(countdown_times.w_cache[TESTID]*REPS+extraTime);
 		} else {
-			Countdown_Start(countdown_times.wo_cache[TESTID]*REPS);
+			Countdown_Start(countdown_times.wo_cache[TESTID]*REPS+extraTime);
 		}
 		
 		try {
@@ -1063,12 +1069,11 @@ function startSerial()
 						setStatus("Executing " + TESTNAME + " - "+(counter++)+"% done."+repetitionText, true);
 					}
 				}
-				diffMs = (new Date()) - timeBefore;
+				diffMs = (new Date()) - timeRepBefore;
 				diffMins = Math.floor(diffMs / 60000).toString().padStart(2,'0'); 
 				diffSecs = Math.floor((diffMs % 60000) / 1000).toString().padStart(2,'0'); 
 				setStatus("Finished " + TESTNAME + repetitionText + " - Result: " + cont.data + " - Time: " + diffMins + ":"+diffSecs);
 				
-				Countdown_Reset();
 			}
 
 			let timeAfter = new Date();
